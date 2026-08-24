@@ -24,3 +24,42 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Print Styles */
+@media print {
+  /* Hide non-essential elements */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only print container */
+  .print-container,
+  .print-container * {
+    visibility: visible;
+  }
+
+  /* Position at top left */
+  .print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Remove shadows and backgrounds */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Page settings */
+  @page {
+    size: A5;
+    margin: 0.5cm;
+  }
+
+  /* Ensure proper page breaks */
+  .no-print {
+    display: none !important;
+  }
+}

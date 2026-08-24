@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Ticket, FileBarChart, Building2 } from 'lucide-react'
+import { LayoutDashboard, Ticket, FileBarChart, Building2, Shield, UserCircle, Wrench, HardHat } from 'lucide-react'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -10,6 +10,10 @@ export default function Sidebar() {
   const menus = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Tiket Komplain', href: '/tickets', icon: Ticket },
+    { name: 'Dashboard RR', href: '/rr/dashboard', icon: UserCircle },
+    { name: 'Engineering Admin', href: '/engineering-admin/dashboard', icon: Wrench },
+    { name: 'My Tickets (Engineering)', href: '/engineering/dashboard', icon: HardHat },
+    { name: 'Admin Center', href: '/admin', icon: Shield },
     { name: 'Laporan', href: '/reports', icon: FileBarChart },
   ]
 

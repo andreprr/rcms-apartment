@@ -2,12 +2,50 @@
 
 import { createTicket } from '@/actions/tickets'
 import { useState, useTransition } from 'react'
-import { Loader2, AlertCircle, Building2, Tag, Heading, AlignLeft } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Loader2, AlertCircle, Building2, Tag, Heading, AlignLeft, Printer, CheckCircle2, MapPin, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 
-export default function CreateTicketForm({ units, categories }: { units: any[], categories: any[] }) {
+interface Unit {
+  id: string
+  unit_code: string
+  floor: number
+  unit_number: string
+  building_id: string
+}
+
+interface Category {
+  id: string
+  name: string
+  code: string
+}
+
+interface Building {
+  id: string
+  code: string
+  name: string
+}
+
+interface CreateTicketFormProps {
+  units: Unit[]
+  categories: Category[]
+  buildings: Building[]
+}
+
+export default function CreateTicketForm({ units, categories, buildings }: CreateTicketFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [createdTicket, setCreatedTicket] = useState<{ id: string; ticket_number: string } | null>(null)
+
+  // Cascading dropdown state
+  const [selectedBuilding, setSelectedBuilding] = useState<string>('')
+  const [selectedUnit, setSelectedUnit] = useState<string>('')
+
+  // Filter units by building
+  const filteredUnits = selectedBuilding
+    ? units.filter(u => u.building_id === selectedBuilding)
+    : []
 
   async function handleSubmit(formData: FormData) {
     setError(null)
@@ -15,90 +53,220 @@ export default function CreateTicketForm({ units, categories }: { units: any[], 
       const res = await createTicket(formData)
       if (res?.error) {
         setError(res.error)
+      } else if (res?.success) {
+        setCreatedTicket(res.ticket)
+        setShowSuccessModal(true)
       }
     })
   }
 
   return (
-    <form action={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-8">
-      {/* Notifikasi Error */}
-      {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-xl text-sm">
-          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-          <p className="leading-relaxed">{error}</p>
+    <>
+      <form action={handleSubmit} className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-xl overflow-hidden">
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-slate-100/80 bg-gradient-to-r from-slate-50/50 to-white/50">
+          <h2 className="text-lg font-bold text-slate-800">Detail Keluhan</h2>
+          <p className="text-sm text-slate-500 mt-1">Lengkapi informasi keluhan warga di bawah ini</p>
         </div>
-      )}
 
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Dropdown Unit */}
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-slate-400" /> Unit Warga <span className="text-red-500">*</span>
-            </label>
-            <select name="unit_id" required className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-3 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-600 transition-all outline-none">
-              <option value="">-- Pilih Unit Warga --</option>
-              {units?.map((u) => (
-                <option key={u.id} value={u.id}>{u.unit_code} (Lantai {u.floor})</option>
-              ))}
-            </select>
+        {/* Form Content */}
+        <div className="p-8 space-y-6">
+          {/* Notifikasi Error */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="flex items-start gap-3 bg-red-50/80 border border-red-200/60 text-red-700 px-5 py-4 rounded-xl text-sm"
+              >
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">{error}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Building Zone & Unit Dropdown */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Building Zone */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-slate-400" />
+                Zona Gedung <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedBuilding}
+                  onChange={(e) => {
+                    setSelectedBuilding(e.target.value)
+                    setSelectedUnit('')
+                  }}
+                  required
+                  className="w-full appearance-none bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 pr-10 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none cursor-pointer"
+                >
+                  <option value="">-- Pilih Zona Gedung --</option>
+                  {buildings?.map((b) => (
+                    <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Unit Number */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-slate-400" />
+                Nomor Unit <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  name="unit_id"
+                  value={selectedUnit}
+                  onChange={(e) => setSelectedUnit(e.target.value)}
+                  required
+                  disabled={!selectedBuilding}
+                  className="w-full appearance-none bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 pr-10 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">-- Pilih Unit --</option>
+                  {filteredUnits.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.unit_code} - Lantai {u.floor}, Unit {u.unit_number}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
           </div>
 
-          {/* Dropdown Kategori */}
+          {/* Category Dropdown */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Tag className="w-4 h-4 text-slate-400" /> Kategori Keluhan <span className="text-red-500">*</span>
+              <Tag className="w-4 h-4 text-slate-400" />
+              Kategori Keluhan <span className="text-red-500">*</span>
             </label>
-            <select name="category_id" required className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-3 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-600 transition-all outline-none">
-              <option value="">-- Pilih Kategori --</option>
-              {categories?.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select name="category_id" required className="w-full appearance-none bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 pr-10 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none cursor-pointer">
+                <option value="">-- Pilih Kategori --</option>
+                {categories?.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Problem Title */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <Heading className="w-4 h-4 text-slate-400" />
+              Judul Keluhan <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="problem"
+              required
+              placeholder="Contoh: Pipa wastafel di kamar mandi utama bocor"
+              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none placeholder:text-slate-400"
+            />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <AlignLeft className="w-4 h-4 text-slate-400" />
+              Deskripsi Lengkap <span className="text-slate-400 font-normal">(Opsional)</span>
+            </label>
+            <textarea
+              name="description"
+              rows={4}
+              placeholder="Jelaskan detail masalah yang dialami warga, lokasi spesifik, atau informasi tambahan lainnya..."
+              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none resize-none placeholder:text-slate-400"
+            ></textarea>
           </div>
         </div>
 
-        {/* Judul Keluhan */}
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <Heading className="w-4 h-4 text-slate-400" /> Judul Keluhan <span className="text-red-500">*</span>
-          </label>
-          <input 
-            type="text" 
-            name="problem" 
-            required 
-            placeholder="Contoh: Pipa wastafel di kamar mandi bocor" 
-            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-3 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-600 transition-all outline-none"
-          />
+        {/* Footer Actions */}
+        <div className="px-8 py-6 border-t border-slate-100/80 bg-slate-50/30 flex flex-col sm:flex-row gap-3">
+          <Link
+            href="/tickets"
+            className="px-6 py-3 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 font-semibold rounded-xl transition-all text-center"
+          >
+            Batal
+          </Link>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="flex-1 flex justify-center items-center gap-2 bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 focus:ring-4 focus:ring-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Memproses...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                Buat Tiket
+              </>
+            )}
+          </button>
         </div>
+      </form>
 
-        {/* Deskripsi Lengkap */}
-        <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <AlignLeft className="w-4 h-4 text-slate-400" /> Deskripsi Lengkap <span className="text-slate-400 font-normal">(Opsional)</span>
-          </label>
-          <textarea 
-            name="description" 
-            rows={5} 
-            placeholder="Jelaskan detail masalah yang dialami warga, lokasi spesifik, atau informasi tambahan lainnya..." 
-            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-3 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-600 transition-all outline-none resize-none"
-          ></textarea>
-        </div>
-      </div>
-
-      {/* Area Tombol */}
-      <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-100">
-        <Link href="/tickets" className="px-6 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 font-semibold rounded-xl transition-colors text-center">
-          Batal
-        </Link>
-        <button 
-          type="submit" 
-          disabled={isPending}
-          className="flex-1 flex justify-center items-center gap-2 bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 focus:ring-4 focus:ring-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-        >
-          {isPending ? <><Loader2 className="w-5 h-5 animate-spin" /> Sedang Memproses...</> : 'Kirim & Buat Tiket'}
-        </button>
-      </div>
-    </form>
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && createdTicket && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
+              onClick={() => setShowSuccessModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="relative bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/60 w-full max-w-md overflow-hidden"
+            >
+              <div className="p-8 text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
+                  className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"
+                >
+                  <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+                </motion.div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Tiket Berhasil Dibuat!</h3>
+                <p className="text-slate-500 mb-2">Nomor tiket Anda adalah:</p>
+                <p className="text-2xl font-bold text-blue-600 mb-6">{createdTicket.ticket_number}</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowSuccessModal(false)}
+                    className="flex-1 px-4 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold rounded-xl transition-colors"
+                  >
+                    Kembali
+                  </button>
+                  <Link
+                    href={`/tickets/${createdTicket.id}/print`}
+                    className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Cetak Tiket
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

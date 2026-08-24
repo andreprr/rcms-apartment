@@ -33,7 +33,7 @@ export async function createTicket(formData: FormData) {
   }
 
   // 3. Panggil fungsi PostgreSQL yang sudah kita buat di SQL Editor
-  const { error } = await supabase.rpc('create_ticket_transaction', {
+  const { data, error } = await supabase.rpc('create_ticket_transaction', {
     p_unit_id: unit_id,
     p_category_id: category_id,
     p_problem: problem,
@@ -46,9 +46,18 @@ export async function createTicket(formData: FormData) {
     return { error: 'Gagal membuat tiket. Silakan coba lagi.' }
   }
 
-  // 4. Jika sukses, perbarui data halaman tiket dan arahkan ke tabel
+  // 4. Jika sukses, perbarui data halaman tiket
   revalidatePath('/tickets')
-  redirect('/tickets')
+  revalidatePath('/dashboard')
+
+  // 5. Kembalikan data tiket untuk modal
+  return {
+    success: true,
+    ticket: {
+      id: data.id,
+      ticket_number: data.ticket_number
+    }
+  }
 }
 
 export async function updateTicketStatus(formData: FormData) {
@@ -86,7 +95,7 @@ export async function updateTicketStatus(formData: FormData) {
 
   // 3. Catat Riwayat (History)
   const historyText = description ? description : `Status diperbarui menjadi ${newStatus.replace('_', ' ')} oleh ${profile.full_name}`
-  
+
   await supabase.from('ticket_history').insert({
     ticket_id: ticketId,
     action: newStatus,
