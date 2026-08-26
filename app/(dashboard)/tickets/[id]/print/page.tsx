@@ -1,33 +1,66 @@
-import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { Building2, Calendar, Tag, Clock, AlertCircle, Printer, ArrowLeft, FileText } from 'lucide-react'
+'use client'
 
-interface PageProps {
-  params: Promise<{ id: string }>
+import { useState, useEffect } from 'react'
+import { createSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Building2, Tag, Clock, Printer, ArrowLeft, FileText, Loader2 } from 'lucide-react'
+
+interface Ticket {
+  id: string
+  ticket_number: string
+  unit_code: string
+  resident_name: string
+  problem: string
+  description?: string
+  status: string
+  created_at: string
+  users?: { full_name: string }
 }
 
-export default async function PrintTicketPage({ params }: PageProps) {
-  const resolvedParams = await params
-  const supabase = await createClient()
+export default function PrintTicketPage({ params }: { params: Promise<{ id: string }> }) {
+  const [ticket, setTicket] = useState<Ticket | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  // Fetch ticket data with related info
-  const { data: ticket, error } = await supabase
-    .from('tickets')
-    .select(`
-      *,
-      units(unit_code, floor, unit_number),
-      complaint_categories(name, code),
-      users(full_name)
-    `)
-    .eq('id', resolvedParams.id)
-    .single()
+  useEffect(() => {
+    params.then(p => {
+      const supabase = createSupabaseBrowserClient()
+      supabase
+        .from('tickets')
+        .select('*, users!tickets_created_by_fkey(full_name)')
+        .eq('id', p.id)
+        .single()
+        .then(({ data, error }) => {
+          if (error || !data) {
+            setNotFound(true)
+          } else {
+            setTicket(data)
+          }
+          setLoading(false)
+        })
+    })
+  }, [params])
 
-  if (error || !ticket) {
-    notFound()
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    )
   }
 
-  // Format date
+  if (notFound || !ticket) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-slate-600 font-medium mb-4">Tiket tidak ditemukan</p>
+          <Link href="/dashboard" className="text-blue-600 hover:underline">Kembali ke Dashboard</Link>
+        </div>
+      </div>
+    )
+  }
+
   const formattedDate = new Date(ticket.created_at).toLocaleDateString('id-ID', {
     weekday: 'long',
     day: 'numeric',
@@ -82,7 +115,6 @@ export default async function PrintTicketPage({ params }: PageProps) {
 
         {/* Content */}
         <div className="p-8 space-y-6">
-          {/* Unit Info */}
           <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Building2 className="w-4 h-4" />
@@ -91,15 +123,11 @@ export default async function PrintTicketPage({ params }: PageProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-slate-500">Kode Unit</p>
-                <p className="text-lg font-bold text-slate-800">{ticket.units?.unit_code}</p>
+                <p className="text-lg font-bold text-slate-800">{ticket.unit_code}</p>
               </div>
               <div>
-                <p className="text-sm text-slate-500">Nomor Unit</p>
-                <p className="text-lg font-bold text-slate-800">{ticket.units?.unit_number}</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Lantai</p>
-                <p className="text-lg font-bold text-slate-800">{ticket.units?.floor}</p>
+                <p className="text-sm text-slate-500">Nama Warga</p>
+                <p className="text-lg font-bold text-slate-800">{ticket.resident_name}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-500">Dibuat Oleh</p>
@@ -108,31 +136,14 @@ export default async function PrintTicketPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Category */}
           <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Tag className="w-4 h-4" />
-              Kategori Keluhan
-            </h3>
-            <div className="flex items-center gap-3">
-              <span className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-semibold">
-                {ticket.complaint_categories?.name}
-              </span>
-              <span className="text-slate-400">|</span>
-              <span className="text-slate-600">{ticket.complaint_categories?.code}</span>
-            </div>
-          </div>
-
-          {/* Problem */}
-          <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4" />
-              Judul Keluhan
+              Keluhan
             </h3>
             <p className="text-lg font-semibold text-slate-800">{ticket.problem}</p>
           </div>
 
-          {/* Description */}
           {ticket.description && (
             <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -143,7 +154,6 @@ export default async function PrintTicketPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Status */}
           <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Clock className="w-4 h-4" />
@@ -152,7 +162,6 @@ export default async function PrintTicketPage({ params }: PageProps) {
             <StatusBadge status={ticket.status} />
           </div>
 
-          {/* QR Code Placeholder */}
           <div className="flex items-center justify-center pt-4 border-t border-slate-100">
             <div className="text-center">
               <div className="w-24 h-24 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3 border-2 border-dashed border-slate-300">

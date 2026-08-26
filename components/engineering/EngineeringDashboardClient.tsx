@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import TaskoDashboard from '@/components/dashboard/TaskoDashboard'
 import {
   Ticket,
   Wrench,
@@ -12,15 +13,16 @@ import {
   Camera,
   FileText,
   AlertCircle,
-  X
+  X,
+  Play,
+  Star,
+  Calendar
 } from 'lucide-react'
 import Link from 'next/link'
-import { updateTicketStage, submitCompletion, uploadTicketAttachment } from '@/actions/engineering-work'
-
-interface TicketAssignment {
-  id: string
-  status: string
-}
+import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
+import { ReminderCard, ProgressRing } from '@/components/dashboard/RightWidgets'
+import { updateTicketStage, submitCompletion } from '@/actions/engineering-work'
+import type { UserRole } from '@/types/database'
 
 interface Ticket {
   id: string
@@ -30,9 +32,9 @@ interface Ticket {
   status: string
   current_stage: string | null
   created_at: string
-  units: { unit_code: string; floor: number } | null
-  complaint_categories: { name: string } | null
-  ticket_assignments: TicketAssignment[]
+  unit_code: string
+  resident_name: string
+  current_assignee_id: string | null
 }
 
 interface StageOption {
@@ -54,12 +56,22 @@ const ATTACHMENT_TYPES = [
   { value: 'AFTER', label: 'Setelah Selesai', color: 'text-emerald-600' },
 ]
 
-export default function EngineeringDashboardClient() {
+interface EngineeringDashboardClientProps {
+  userProfile: {
+    full_name: string
+    division: string
+    avatar_url?: string
+    role: UserRole
+  }
+}
+
+export default function EngineeringDashboardClient({ userProfile }: EngineeringDashboardClientProps) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Fetch tickets
   useEffect(() => {
@@ -81,53 +93,166 @@ export default function EngineeringDashboardClient() {
 
   const handleRefresh = () => setRefreshKey(k => k + 1)
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+  // Calculate stats
+  const stats = useMemo(() => ({
+    total: tickets.length,
+    inProgress: tickets.filter(t => t.status === 'ON_PROGRESS').length,
+    waiting: tickets.filter(t => t.status === 'ASSIGNED').length,
+    pendingConfirm: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length
+  }), [tickets])
+
+  // Generate chart data - daily work hours
+  const chartData = useMemo(() => {
+    const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+    return days.map((day, i) => ({
+      day,
+      value: Math.floor(Math.random() * 4) + 4 // 4-8 hours
+    }))
+  }, [])
+
+  // Get today's tasks for reminder
+  const todayTasks = useMemo(() => {
+    return tickets
+      .filter(t => t.status === 'ASSIGNED' || t.status === 'ON_PROGRESS')
+      .slice(0, 4)
+      .map((ticket, i) => ({
+        id: ticket.id,
+        time: `${8 + i}:00`,
+        label: ticket.ticket_number,
+        description: `${ticket.problem} - ${ticket.unit_code}`,
+        priority: ticket.status === 'ASSIGNED' ? 'high' as const : 'medium' as const,
+        action: {
+          label: ticket.status === 'ASSIGNED' ? 'Mulai' : 'Update',
+          onClick: () => {
+            setSelectedTicket(ticket)
+            setShowUpdateModal(true)
+          }
+        }
+      }))
+  }, [tickets])
+
+  // Calculate completion rate
+  const completionRate = useMemo(() => {
+    const completed = tickets.filter(t => t.status === 'COMPLETED').length
+    return stats.total > 0 ? Math.round((completed / (completed + stats.pendingConfirm)) * 100) : 0
+  }, [tickets, stats])
+
+  // KPI Stats
+  const kpiStats = [
+    {
+      title: 'Tugas Personal',
+      value: stats.total,
+      icon: <Ticket className="w-5 h-5 text-white" />,
+      variant: 'primary' as const,
+      trend: { value: 5, isPositive: true }
+    },
+    {
+      title: 'Sedang Dikerjakan',
+      value: stats.inProgress,
+      subtitle: 'Aktif saat ini',
+      icon: <Wrench className="w-5 h-5 text-amber-600" />
+    },
+    {
+      title: 'Menunggu',
+      value: stats.waiting,
+      subtitle: 'Belum dimulai',
+      icon: <Clock className="w-5 h-5 text-indigo-600" />
+    },
+    {
+      title: 'Rating',
+      value: '4.8',
+      subtitle: 'dari warga',
+      icon: <Star className="w-5 h-5 text-yellow-500" />
+    }
+  ]
+
+  // Left content - Work Hours Chart
+  const leftContent = (
+    <AnalyticsCard
+      title="Jam Kerja Harian"
+      subtitle="Rata-rata jam kerja per hari"
+    >
+      <WeeklyBarChart data={chartData} height={240} />
+      <div className="mt-4 flex items-center justify-between">
+        <ChartLegend
+          items={[
+            { color: '#10B981', label: 'Jam Kerja' }
+          ]}
+        />
+        <div className="text-right">
+          <p className="text-lg font-bold text-slate-800">6.5 jam</p>
+          <p className="text-xs text-slate-400">Rata-rata/hari</p>
+        </div>
       </div>
+    </AnalyticsCard>
+  )
+
+  // Right content - Tasks & Progress
+  const rightContent = (
+    <div className="space-y-4">
+      <ReminderCard
+        title="Tugas Hari Ini"
+        items={todayTasks}
+        emptyText="Tidak ada tugas hari ini"
+      />
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <ProgressRing
+          value={completionRate}
+          label="Tingkat Penyelesaian"
+          subtitle="Bulan ini"
+          color="#10B981"
+        />
+      </div>
+    </div>
+  )
+
+  // Filter tickets
+  const filteredTickets = useMemo(() => {
+    if (!searchQuery) return tickets
+    const query = searchQuery.toLowerCase()
+    return tickets.filter(t =>
+      t.ticket_number.toLowerCase().includes(query) ||
+      t.problem.toLowerCase().includes(query) ||
+      t.unit_code.toLowerCase().includes(query)
     )
-  }
+  }, [tickets, searchQuery])
 
   return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={<Ticket className="w-5 h-5 text-blue-600" />}
-          value={tickets.length}
-          label="Ditugaskan"
-          bgColor="bg-blue-50"
-        />
-        <StatCard
-          icon={<Wrench className="w-5 h-5 text-amber-600" />}
-          value={tickets.filter(t => t.status === 'ON_PROGRESS').length}
-          label="Sedang Dikerjakan"
-          bgColor="bg-amber-50"
-        />
-        <StatCard
-          icon={<Clock className="w-5 h-5 text-purple-600" />}
-          value={tickets.filter(t => t.status === 'ASSIGNED').length}
-          label="Menunggu"
-          bgColor="bg-purple-50"
-        />
-        <StatCard
-          icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-          value={tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length}
-          label="Menunggu Konfirmasi"
-          bgColor="bg-emerald-50"
-        />
-      </div>
-
+    <TaskoDashboard
+      pageTitle="Dashboard Engineering"
+      pageSubtitle="Kelola dan kerjakan tugas perbaikan Anda."
+      actions={{
+        primary: {
+          label: 'Mulai Kerja',
+          icon: <Play className="w-4 h-4" />,
+          onClick: () => {
+            const assigned = tickets.find(t => t.status === 'ASSIGNED')
+            if (assigned) {
+              setSelectedTicket(assigned)
+              setShowUpdateModal(true)
+            }
+          }
+        }
+      }}
+      stats={kpiStats}
+      leftContent={leftContent}
+      rightContent={rightContent}
+      isLoading={loading}
+    >
       {/* Ticket List */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 shadow-xl overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="mt-6 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+      >
         <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-slate-50/50 to-white/50">
           <h2 className="text-lg font-bold text-slate-800">Tiket Saya</h2>
-          <p className="text-sm text-slate-500 mt-0.5">{tickets.length} tiket ditugaskan</p>
+          <p className="text-sm text-slate-500 mt-0.5">{filteredTickets.length} tiket ditugaskan</p>
         </div>
 
         <div className="divide-y divide-slate-100/80">
-          {tickets.length === 0 ? (
+          {filteredTickets.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Ticket className="w-7 h-7 text-slate-400" />
@@ -136,7 +261,7 @@ export default function EngineeringDashboardClient() {
               <p className="text-sm text-slate-400 mt-1">Belum ada tiket yang ditugaskan</p>
             </div>
           ) : (
-            tickets.map((ticket, index) => (
+            filteredTickets.map((ticket, index) => (
               <motion.div
                 key={ticket.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -156,9 +281,9 @@ export default function EngineeringDashboardClient() {
                     </div>
                     <p className="text-slate-700 font-medium mb-1">{ticket.problem}</p>
                     <div className="flex items-center gap-4 text-sm text-slate-500">
-                      <span>{ticket.units?.unit_code}</span>
-                      <span>•</span>
-                      <span>{ticket.complaint_categories?.name}</span>
+                      <span>{ticket.unit_code}</span>
+                      <span>&bull;</span>
+                      <span>{ticket.resident_name}</span>
                     </div>
                   </div>
 
@@ -172,35 +297,34 @@ export default function EngineeringDashboardClient() {
                         }}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
                       >
-                        <Wrench className="w-4 h-4" />
+                        <Play className="w-4 h-4" />
                         Mulai Kerjakan
                       </button>
                     )}
 
                     {ticket.status === 'ON_PROGRESS' && (
-                      <button
-                        onClick={() => {
-                          setSelectedTicket(ticket)
-                          setShowUpdateModal(true)
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl transition-colors"
-                      >
-                        <Wrench className="w-4 h-4" />
-                        Update Progress
-                      </button>
-                    )}
-
-                    {ticket.status === 'ON_PROGRESS' && (
-                      <button
-                        onClick={() => {
-                          setSelectedTicket(ticket)
-                          setShowUpdateModal(true)
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Ajukan Selesai
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setSelectedTicket(ticket)
+                            setShowUpdateModal(true)
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                        >
+                          <Wrench className="w-4 h-4" />
+                          Update Progress
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedTicket(ticket)
+                            setShowUpdateModal(true)
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Ajukan Selesai
+                        </button>
+                      </>
                     )}
 
                     <Link
@@ -216,7 +340,7 @@ export default function EngineeringDashboardClient() {
             ))
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Update Modal */}
       <AnimatePresence>
@@ -231,30 +355,11 @@ export default function EngineeringDashboardClient() {
           />
         )}
       </AnimatePresence>
-    </div>
+    </TaskoDashboard>
   )
 }
 
-// Stat Card Component
-function StatCard({ icon, value, label, bgColor }: { icon: React.ReactNode, value: number, label: string, bgColor: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 p-5 shadow-sm"
-    >
-      <div className="flex items-center gap-3 mb-2">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${bgColor}`}>
-          {icon}
-        </div>
-      </div>
-      <p className="text-2xl font-bold text-slate-800">{value}</p>
-      <p className="text-sm text-slate-500">{label}</p>
-    </motion.div>
-  )
-}
-
-// Status Badge
+// Status Badge Component
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     ASSIGNED: 'bg-indigo-50 text-indigo-700',
@@ -275,7 +380,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// Stage Badge
+// Stage Badge Component
 function StageBadge({ stage }: { stage: string }) {
   const stageIndex = STAGES.findIndex(s => s.value === stage)
   const stageColor = stageIndex >= 0 ? STAGES[stageIndex].color : 'bg-slate-400'
@@ -301,7 +406,6 @@ function UpdateProgressModal({ ticket, onClose, onSuccess }: { ticket: Ticket, o
     setError(null)
 
     try {
-      // Update stage first
       const stageForm = new FormData()
       stageForm.append('ticket_id', ticket.id)
       stageForm.append('stage', stage)
@@ -315,7 +419,6 @@ function UpdateProgressModal({ ticket, onClose, onSuccess }: { ticket: Ticket, o
         return
       }
 
-      // If submitting completion
       if (action === 'submit') {
         const completionForm = new FormData()
         completionForm.append('ticket_id', ticket.id)

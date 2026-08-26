@@ -24,11 +24,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   // Mengambil data tiket spesifik
   const { data: ticket, error } = await supabase
     .from('tickets')
-    .select(`
-      *,
-      units(unit_code, floor),
-      complaint_categories(name)
-    `)
+    .select('*')
     .eq('id', ticketId)
     .single()
 
@@ -93,11 +89,12 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-sm text-slate-500 font-medium mb-1 flex items-center gap-1.5"><Building2 className="w-4 h-4" /> Unit Warga</p>
-                <p className="text-base font-bold text-slate-800">{ticket.units?.unit_code} <span className="text-sm font-normal text-slate-500">(Lantai {ticket.units?.floor})</span></p>
+                <p className="text-base font-bold text-slate-800">{ticket.unit_code}</p>
+                <p className="text-sm text-slate-600">{ticket.resident_name}</p>
               </div>
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-sm text-slate-500 font-medium mb-1 flex items-center gap-1.5"><Tag className="w-4 h-4" /> Kategori</p>
-                <p className="text-base font-bold text-slate-800">{ticket.complaint_categories?.name}</p>
+                <p className="text-sm text-slate-500 font-medium mb-1 flex items-center gap-1.5"><Tag className="w-4 h-4" /> Keluhan</p>
+                <p className="text-base font-bold text-slate-800">{ticket.problem}</p>
               </div>
             </div>
 

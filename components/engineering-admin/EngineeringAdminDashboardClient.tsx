@@ -1,21 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
+import TaskoDashboard from '@/components/dashboard/TaskoDashboard'
 import {
   Ticket,
   Clock,
   CheckCircle2,
   AlertCircle,
   Wrench,
-  UserCheck,
   ChevronRight,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Users,
+  Plus,
+  Filter
 } from 'lucide-react'
 import Link from 'next/link'
+import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
+import { ReminderCard, DonutCard } from '@/components/dashboard/RightWidgets'
 import AssignTechniciansModal from '@/components/engineering-admin/AssignTechniciansModal'
 import AutoFinishTimer from '@/components/engineering-admin/AutoFinishTimer'
+import type { UserRole } from '@/types/database'
 
 interface Ticket {
   id: string
@@ -24,11 +30,9 @@ interface Ticket {
   status: string
   created_at: string
   submitted_at: string | null
-  units: { unit_code: string; floor: number; unit_number: string } | null
-  complaint_categories: { name: string } | null
-  ticket_assignments: Array<{
-    users: { full_name: string } | null
-  }> | null
+  unit_code: string
+  resident_name: string
+  current_assignee_id: string | null
 }
 
 interface Stats {
@@ -39,13 +43,23 @@ interface Stats {
   waitingConfirmation: number
 }
 
-export default function EngineeringAdminDashboardClient() {
+interface EngineeringAdminDashboardClientProps {
+  userProfile: {
+    full_name: string
+    division: string
+    avatar_url?: string
+    role: UserRole
+  }
+}
+
+export default function EngineeringAdminDashboardClient({ userProfile }: EngineeringAdminDashboardClientProps) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'incoming' | 'active' | 'pending'>('incoming')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Fetch tickets
   useEffect(() => {
@@ -66,22 +80,94 @@ export default function EngineeringAdminDashboardClient() {
     fetchTickets()
   }, [refreshKey])
 
-  // Filter tickets by tab
-  const filteredTickets = tickets.filter(t => {
-    if (activeTab === 'incoming') return t.status === 'NEW'
-    if (activeTab === 'active') return ['ASSIGNED', 'ON_PROGRESS'].includes(t.status)
-    if (activeTab === 'pending') return t.status === 'WAITING_CONFIRMATION'
-    return false
-  })
-
   // Calculate stats
-  const stats: Stats = {
+  const stats: Stats = useMemo(() => ({
     total: tickets.length,
     new: tickets.filter(t => t.status === 'NEW').length,
     assigned: tickets.filter(t => t.status === 'ASSIGNED').length,
     inProgress: tickets.filter(t => t.status === 'ON_PROGRESS').length,
     waitingConfirmation: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length
-  }
+  }), [tickets])
+
+  // Generate chart data - technician performance
+  const chartData = useMemo(() => {
+    // Simulate technician performance data
+    const technicians = ['Andi', 'Budi', 'Dewi', 'Eko']
+    return technicians.map(name => ({
+      day: name,
+      value: Math.floor(Math.random() * 10) + 3
+    }))
+  }, [])
+
+  // Get technician queue for reminder panel
+  const technicianQueue = useMemo(() => {
+    const assignedTickets = tickets.filter(t => t.status === 'ASSIGNED' || t.status === 'ON_PROGRESS')
+    return assignedTickets.slice(0, 5).map((ticket, i) => ({
+      id: ticket.id,
+      time: `${9 + i}:00`,
+      label: ticket.ticket_number,
+      description: `${ticket.problem} - ${ticket.unit_code}`,
+      priority: 'medium' as const,
+      action: {
+        label: 'Detail',
+        onClick: () => window.location.href = `/tickets/${ticket.id}`
+      }
+    }))
+  }, [tickets])
+
+  // Filter tickets by tab
+  const filteredTickets = useMemo(() => {
+    let filtered = tickets
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(t =>
+        t.ticket_number.toLowerCase().includes(query) ||
+        t.problem.toLowerCase().includes(query) ||
+        t.unit_code.toLowerCase().includes(query)
+      )
+    }
+    if (activeTab === 'incoming') return filtered.filter(t => t.status === 'NEW')
+    if (activeTab === 'active') return filtered.filter(t => ['ASSIGNED', 'ON_PROGRESS'].includes(t.status))
+    if (activeTab === 'pending') return filtered.filter(t => t.status === 'WAITING_CONFIRMATION')
+    return filtered
+  }, [tickets, activeTab, searchQuery])
+
+  // Status distribution for donut
+  const statusDistribution = [
+    { label: 'Baru', value: stats.new, color: '#3B82F6' },
+    { label: 'Ditugaskan', value: stats.assigned, color: '#8B5CF6' },
+    { label: 'Diproses', value: stats.inProgress, color: '#F59E0B' },
+    { label: 'Pending', value: stats.waitingConfirmation, color: '#EC4899' },
+  ]
+
+  // KPI Stats
+  const kpiStats = [
+    {
+      title: 'Total Tiket',
+      value: stats.total,
+      icon: <Ticket className="w-5 h-5 text-white" />,
+      variant: 'primary' as const,
+      trend: { value: 8, isPositive: true }
+    },
+    {
+      title: 'Ditugaskan',
+      value: stats.assigned,
+      subtitle: 'Siap dikerjakan',
+      icon: <Users className="w-5 h-5 text-indigo-600" />
+    },
+    {
+      title: 'Sedang Diproses',
+      value: stats.inProgress,
+      subtitle: 'Dalam pengerjaan',
+      icon: <Wrench className="w-5 h-5 text-amber-600" />
+    },
+    {
+      title: 'Auto-Finish Pending',
+      value: stats.waitingConfirmation,
+      subtitle: 'Menunggu konfirmasi',
+      icon: <RefreshCw className="w-5 h-5 text-purple-600" />
+    }
+  ]
 
   // Get status style
   function getStatusStyle(status: string) {
@@ -106,97 +192,66 @@ export default function EngineeringAdminDashboardClient() {
     setRefreshKey(k => k + 1)
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+  // Left content - Analytics
+  const leftContent = (
+    <AnalyticsCard
+      title="Performa Teknisi"
+      subtitle="Jumlah tiket yang diselesaikan per teknisi"
+    >
+      <WeeklyBarChart data={chartData} height={260} />
+      <div className="mt-4">
+        <ChartLegend
+          items={[
+            { color: '#10B981', label: 'Tiket Selesai' }
+          ]}
+        />
       </div>
-    )
-  }
+    </AnalyticsCard>
+  )
+
+  // Right content - Reminders & Progress
+  const rightContent = (
+    <div className="space-y-4">
+      <ReminderCard
+        title="Antrean Teknisi"
+        items={technicianQueue}
+        emptyText="Tidak ada antrean"
+      />
+      <DonutCard
+        title="Distribusi Tiket"
+        segments={statusDistribution}
+        total={stats.total}
+        centerLabel="Total"
+      />
+    </div>
+  )
 
   return (
-    <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 p-5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <Ticket className="w-5 h-5 text-blue-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-          <p className="text-sm text-slate-500">Total</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 p-5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <AlertCircle className="w-5 h-5 text-indigo-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-800">{stats.new}</p>
-          <p className="text-sm text-slate-500">Baru</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 p-5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-amber-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-800">{stats.assigned + stats.inProgress}</p>
-          <p className="text-sm text-slate-500">Aktif</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 p-5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
-              <RefreshCw className="w-5 h-5 text-purple-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-800">{stats.waitingConfirmation}</p>
-          <p className="text-sm text-slate-500">Pending</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 p-5 shadow-sm"
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-slate-800">
-            {tickets.filter(t => t.status === 'COMPLETED').length}
-          </p>
-          <p className="text-sm text-slate-500">Selesai</p>
-        </motion.div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-2xl border border-slate-200/60 overflow-hidden shadow-sm">
+    <TaskoDashboard
+      pageTitle="Dashboard Engineering Admin"
+      pageSubtitle="Kelola penugasan teknisi dan pantau progress pekerjaan."
+      actions={{
+        secondary: [
+          {
+            label: 'Refresh',
+            icon: <RefreshCw className="w-4 h-4" />,
+            onClick: handleRefresh
+          }
+        ]
+      }}
+      stats={kpiStats}
+      leftContent={leftContent}
+      rightContent={rightContent}
+      isLoading={loading}
+    >
+      {/* Tabs + Content */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="mt-6 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+      >
+        {/* Tabs */}
         <div className="flex border-b border-slate-100/80">
           <button
             onClick={() => setActiveTab('incoming')}
@@ -247,10 +302,6 @@ export default function EngineeringAdminDashboardClient() {
             <div className="space-y-4">
               {filteredTickets.map((ticket, index) => {
                 const statusStyle = getStatusStyle(ticket.status)
-                const assignedNames = ticket.ticket_assignments
-                  ?.map(a => a.users?.full_name)
-                  .filter(Boolean)
-                  .join(', ') || null
 
                 return (
                   <motion.div
@@ -271,18 +322,12 @@ export default function EngineeringAdminDashboardClient() {
                         </div>
                         <p className="text-slate-700 font-medium mb-1">{ticket.problem}</p>
                         <div className="flex items-center gap-4 text-sm text-slate-500">
-                          <span>{ticket.units?.unit_code}</span>
-                          <span>•</span>
-                          <span>{ticket.complaint_categories?.name}</span>
-                          <span>•</span>
+                          <span>{ticket.unit_code}</span>
+                          <span>&bull;</span>
+                          <span>{ticket.resident_name}</span>
+                          <span>&bull;</span>
                           <span>{new Date(ticket.created_at).toLocaleDateString('id-ID')}</span>
                         </div>
-                        {assignedNames && (
-                          <div className="flex items-center gap-2 mt-2">
-                            <UserCheck className="w-4 h-4 text-slate-400" />
-                            <span className="text-sm text-slate-600">{assignedNames}</span>
-                          </div>
-                        )}
                       </div>
 
                       {/* Actions & Timer */}
@@ -336,7 +381,7 @@ export default function EngineeringAdminDashboardClient() {
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Assign Modal */}
       {selectedTicket && (
@@ -351,6 +396,6 @@ export default function EngineeringAdminDashboardClient() {
           onSuccess={handleRefresh}
         />
       )}
-    </div>
+    </TaskoDashboard>
   )
 }

@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
+import TaskoDashboard from '@/components/dashboard/TaskoDashboard'
 import {
   Users,
   UserPlus,
@@ -9,8 +10,15 @@ import {
   AlertCircle,
   XCircle,
   Loader2,
-  X
+  X,
+  Shield,
+  Activity,
+  Settings,
+  Key
 } from 'lucide-react'
+import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
+import { DonutCard } from '@/components/dashboard/RightWidgets'
+import type { UserRole } from '@/types/database'
 
 // Types
 interface UserData {
@@ -33,6 +41,12 @@ interface RoleOption {
 
 interface AdminUserManagementClientProps {
   initialUsers: UserData[]
+  userProfile: {
+    full_name: string
+    division: string
+    avatar_url?: string
+    role: UserRole
+  }
 }
 
 const ROLE_OPTIONS: RoleOption[] = [
@@ -40,7 +54,7 @@ const ROLE_OPTIONS: RoleOption[] = [
   { value: 'RR', label: 'Residence Representative', color: 'text-blue-600', bgColor: 'bg-blue-50' },
   { value: 'ENGINEERING_ADMIN', label: 'Engineering Admin', color: 'text-amber-600', bgColor: 'bg-amber-50' },
   { value: 'ENGINEERING', label: 'Engineering', color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
-  { value: 'MANAGEMENT', label: 'Management', color: 'text-purple-600', bgColor: 'bg-purple-50' },
+  { value: 'PENGURUS', label: 'Management', color: 'text-purple-600', bgColor: 'bg-purple-50' },
 ]
 
 // Animation variants
@@ -90,7 +104,7 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   )
 }
 
-export default function AdminUserManagementClient({ initialUsers }: AdminUserManagementClientProps) {
+export default function AdminUserManagementClient({ initialUsers, userProfile }: AdminUserManagementClientProps) {
   const [users, setUsers] = useState(initialUsers)
   const [showModal, setShowModal] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
@@ -98,6 +112,127 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
   const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+
+  // Calculate stats
+  const stats = {
+    total: users.length,
+    active: users.filter(u => u.is_active).length,
+    inactive: users.filter(u => !u.is_active).length,
+    byRole: ROLE_OPTIONS.map(r => ({
+      label: r.label.split(' ')[0],
+      value: users.filter(u => u.role === r.value).length,
+      color: r.color.includes('red') ? '#EF4444' :
+             r.color.includes('blue') ? '#3B82F6' :
+             r.color.includes('amber') ? '#F59E0B' :
+             r.color.includes('emerald') ? '#10B981' : '#8B5CF6'
+    }))
+  }
+
+  // Chart data
+  const chartData = [
+    { day: 'S', value: Math.floor(Math.random() * 5) + 2 },
+    { day: 'M', value: Math.floor(Math.random() * 8) + 3 },
+    { day: 'T', value: Math.floor(Math.random() * 6) + 4 },
+    { day: 'W', value: Math.floor(Math.random() * 7) + 2 },
+    { day: 'T', value: Math.floor(Math.random() * 5) + 3 },
+    { day: 'F', value: Math.floor(Math.random() * 6) + 4 },
+    { day: 'S', value: Math.floor(Math.random() * 3) + 1 },
+  ]
+
+  // KPI Stats
+  const kpiStats = [
+    {
+      title: 'Total User',
+      value: stats.total,
+      icon: <Users className="w-5 h-5 text-white" />,
+      variant: 'primary' as const,
+      trend: { value: 10, isPositive: true }
+    },
+    {
+      title: 'User Aktif',
+      value: stats.active,
+      subtitle: 'Dapat login',
+      icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+    },
+    {
+      title: 'Tiket Aktif',
+      value: 24,
+      subtitle: 'Sedang berjalan',
+      icon: <Activity className="w-5 h-5 text-blue-600" />
+    },
+    {
+      title: 'Cancelled',
+      value: 3,
+      subtitle: 'Bulan ini',
+      icon: <XCircle className="w-5 h-5 text-rose-600" />
+    }
+  ]
+
+  // Left content - Global Statistics
+  const leftContent = (
+    <AnalyticsCard
+      title="Statistik Global"
+      subtitle="Aktivitas sistem secara keseluruhan"
+    >
+      <WeeklyBarChart data={chartData} height={240} />
+      <div className="mt-4">
+        <ChartLegend
+          items={[
+            { color: '#10B981', label: 'Aktivitas' }
+          ]}
+        />
+      </div>
+    </AnalyticsCard>
+  )
+
+  // Right content - System Audit
+  const rightContent = (
+    <div className="space-y-4">
+      {/* System Audit Panel */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-50">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-blue-500" />
+            <h3 className="text-base font-semibold text-slate-800">System Audit</h3>
+          </div>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600">Total Transaksi</span>
+            <span className="text-sm font-semibold text-slate-800">1,234</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600">Login Hari Ini</span>
+            <span className="text-sm font-semibold text-slate-800">18</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600">Error Rate</span>
+            <span className="text-sm font-semibold text-emerald-600">0.2%</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600">Uptime</span>
+            <span className="text-sm font-semibold text-emerald-600">99.9%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Impersonate Gateway */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-50">
+          <div className="flex items-center gap-2">
+            <Key className="w-4 h-4 text-purple-500" />
+            <h3 className="text-base font-semibold text-slate-800">Impersonate Gateway</h3>
+          </div>
+        </div>
+        <div className="p-4">
+          <button className="w-full px-4 py-2.5 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors flex items-center justify-center gap-2">
+            <Settings className="w-4 h-4" />
+            Akses Mode Super Admin
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 
   // Create user
   async function handleCreateUser(formData: FormData) {
@@ -111,7 +246,6 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
     const role = formData.get('role') as string
 
     try {
-      // Call API route instead of direct Supabase
       const response = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,7 +258,6 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
         throw new Error(result.error || 'Gagal membuat pengguna')
       }
 
-      // Refresh data
       const refreshResponse = await fetch('/api/admin/users')
       const refreshData = await refreshResponse.json()
       setUsers(refreshData.users || [])
@@ -174,52 +307,48 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
   })
 
   return (
-    <>
-      {/* Main Card */}
+    <TaskoDashboard
+      pageTitle="Dashboard Admin"
+      pageSubtitle="Kelola pengguna dan pantau statistik sistem."
+      actions={{
+        primary: {
+          label: 'Tambah User',
+          icon: <UserPlus className="w-4 h-4" />,
+          onClick: () => setShowModal(true)
+        }
+      }}
+      stats={kpiStats}
+      leftContent={leftContent}
+      rightContent={rightContent}
+    >
+      {/* User Management Table */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-xl overflow-hidden"
+        transition={{ delay: 0.4 }}
+        className="mt-6 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
       >
-        {/* Header */}
+        {/* Table Header */}
         <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-slate-50/50 to-white/50">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-slate-800">Manajemen Pengguna</h2>
-              <p className="text-sm text-slate-500 mt-0.5">{users.length} pengguna terdaftar</p>
+              <p className="text-sm text-slate-500 mt-0.5">{filteredUsers.length} pengguna ditemukan</p>
             </div>
-            <button
-              onClick={() => setShowModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all duration-200 hover:shadow-lg hover:shadow-blue-600/20 active:scale-[0.98]"
-            >
-              <UserPlus className="w-4 h-4" />
-              Tambah User Baru
-            </button>
-          </div>
 
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-5">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder="Cari nama, email, atau username..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-400 transition-all"
-              />
-              <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/20 cursor-pointer"
+              >
+                <option value="">Semua Role</option>
+                {ROLE_OPTIONS.map(role => (
+                  <option key={role.value} value={role.value}>{role.label}</option>
+                ))}
+              </select>
             </div>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-400 transition-all cursor-pointer"
-            >
-              <option value="">Semua Role</option>
-              {ROLE_OPTIONS.map(role => (
-                <option key={role.value} value={role.value}>{role.label}</option>
-              ))}
-            </select>
           </div>
         </div>
 
@@ -255,7 +384,7 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="group hover:bg-slate-50/50 transition-colors duration-150"
+                    className="group hover:bg-slate-50/50 transition-colors"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -324,13 +453,10 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
             exit="exit"
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
-            {/* Backdrop */}
             <motion.div
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
               onClick={() => setShowModal(false)}
             />
-
-            {/* Modal Content */}
             <motion.div
               variants={modalContentVariants}
               initial="hidden"
@@ -456,6 +582,6 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </TaskoDashboard>
   )
 }

@@ -1,29 +1,10 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
 import CreateTicketForm from '@/components/forms/CreateTicketForm'
 import { ArrowLeft, TicketPlus } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function NewTicketPage() {
-  const supabase = await createClient()
-
-  // Fetch buildings, units, and categories
-  const { data: buildings } = await supabase
-    .from('buildings')
-    .select('*')
-    .order('code')
-
-  const { data: units } = await supabase
-    .from('units')
-    .select('id, unit_code, floor, unit_number, building_id')
-    .order('unit_code')
-
-  const { data: categories } = await supabase
-    .from('complaint_categories')
-    .select('*')
-    .order('name')
-
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -50,11 +31,7 @@ export default async function NewTicketPage() {
       </div>
 
       {/* Form */}
-      <CreateTicketForm
-        units={units || []}
-        categories={categories || []}
-        buildings={buildings || []}
-      />
+      <CreateTicketForm />
     </div>
   )
 }

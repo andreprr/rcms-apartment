@@ -26,9 +26,9 @@ export async function GET() {
     // Get tickets assigned to this engineer
     const { data: assignments, error: assignError } = await supabase
       .from('ticket_assignments')
-      .select('ticket_id, status')
-      .eq('user_id', profile.id)
-      .eq('status', 'ACTIVE')
+      .select('ticket_id')
+      .eq('engineering_user_id', profile.id)
+      .eq('is_current', true)
 
     if (assignError) throw assignError
 
@@ -49,9 +49,9 @@ export async function GET() {
         status,
         current_stage,
         created_at,
-        units(unit_code, floor),
-        complaint_categories(name),
-        ticket_assignments(id, status)
+        unit_code,
+        resident_name,
+        current_assignee_id
       `)
       .in('id', ticketIds)
       .order('created_at', { ascending: false })

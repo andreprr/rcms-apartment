@@ -11,11 +11,10 @@ export default function UpdateStatusForm({ ticketId, currentStatus }: { ticketId
   async function handleSubmit(formData: FormData) {
     setError(null)
     startTransition(async () => {
-      const res = await updateTicketStatus(formData)
+      const res = await updateTicketStatus(formData) as { error?: string } | undefined
       if (res?.error) {
         setError(res.error)
       } else {
-        // Reset form pada sisi UI jika perlu, tapi revalidatePath akan me-refresh data
         (document.getElementById('update-status-form') as HTMLFormElement).reset()
       }
     })

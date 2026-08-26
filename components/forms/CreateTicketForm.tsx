@@ -3,49 +3,14 @@
 import { createTicket } from '@/actions/tickets'
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, AlertCircle, Building2, Tag, Heading, AlignLeft, Printer, CheckCircle2, MapPin, ChevronDown } from 'lucide-react'
+import { Loader2, AlertCircle, Building2, Heading, AlignLeft, Printer, CheckCircle2, User, Phone } from 'lucide-react'
 import Link from 'next/link'
 
-interface Unit {
-  id: string
-  unit_code: string
-  floor: number
-  unit_number: string
-  building_id: string
-}
-
-interface Category {
-  id: string
-  name: string
-  code: string
-}
-
-interface Building {
-  id: string
-  code: string
-  name: string
-}
-
-interface CreateTicketFormProps {
-  units: Unit[]
-  categories: Category[]
-  buildings: Building[]
-}
-
-export default function CreateTicketForm({ units, categories, buildings }: CreateTicketFormProps) {
+export default function CreateTicketForm() {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [createdTicket, setCreatedTicket] = useState<{ id: string; ticket_number: string } | null>(null)
-
-  // Cascading dropdown state
-  const [selectedBuilding, setSelectedBuilding] = useState<string>('')
-  const [selectedUnit, setSelectedUnit] = useState<string>('')
-
-  // Filter units by building
-  const filteredUnits = selectedBuilding
-    ? units.filter(u => u.building_id === selectedBuilding)
-    : []
 
   async function handleSubmit(formData: FormData) {
     setError(null)
@@ -86,89 +51,67 @@ export default function CreateTicketForm({ units, categories, buildings }: Creat
             )}
           </AnimatePresence>
 
-          {/* Building Zone & Unit Dropdown */}
+          {/* Unit Code & Resident Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Building Zone */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-slate-400" />
-                Zona Gedung <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedBuilding}
-                  onChange={(e) => {
-                    setSelectedBuilding(e.target.value)
-                    setSelectedUnit('')
-                  }}
-                  required
-                  className="w-full appearance-none bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 pr-10 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none cursor-pointer"
-                >
-                  <option value="">-- Pilih Zona Gedung --</option>
-                  {buildings?.map((b) => (
-                    <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Unit Number */}
+            {/* Unit Code */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-slate-400" />
-                Nomor Unit <span className="text-red-500">*</span>
+                Kode Unit <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <select
-                  name="unit_id"
-                  value={selectedUnit}
-                  onChange={(e) => setSelectedUnit(e.target.value)}
-                  required
-                  disabled={!selectedBuilding}
-                  className="w-full appearance-none bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 pr-10 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">-- Pilih Unit --</option>
-                  {filteredUnits.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.unit_code} - Lantai {u.floor}, Unit {u.unit_number}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
+              <input
+                type="text"
+                name="unit_code"
+                required
+                placeholder="Contoh: SA.2-12"
+                className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-purple-600/10 focus:border-purple-400 transition-all outline-none placeholder:text-slate-400"
+              />
+            </div>
+
+            {/* Resident Name */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <User className="w-4 h-4 text-slate-400" />
+                Nama Warga <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="resident_name"
+                required
+                placeholder="Contoh: Ridwan"
+                className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-purple-600/10 focus:border-purple-400 transition-all outline-none placeholder:text-slate-400"
+              />
             </div>
           </div>
 
-          {/* Category Dropdown */}
+          {/* Phone Number */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Tag className="w-4 h-4 text-slate-400" />
-              Kategori Keluhan <span className="text-red-500">*</span>
+              <Phone className="w-4 h-4 text-slate-400" />
+              No. Telepon Warga <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
-              <select name="category_id" required className="w-full appearance-none bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 pr-10 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none cursor-pointer">
-                <option value="">-- Pilih Kategori --</option>
-                {categories?.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            </div>
+            <input
+              type="tel"
+              name="phone_number"
+              required
+              placeholder="Contoh: 081234567890"
+              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-purple-600/10 focus:border-purple-400 transition-all outline-none placeholder:text-slate-400"
+            />
+            <p className="text-xs text-slate-400">Nomor telepon tersimpan untuk notifikasi WA, tidak muncul di cetakan tiket.</p>
           </div>
 
           {/* Problem Title */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
               <Heading className="w-4 h-4 text-slate-400" />
-              Judul Keluhan <span className="text-red-500">*</span>
+              Keluhan Singkat <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               name="problem"
               required
               placeholder="Contoh: Pipa wastafel di kamar mandi utama bocor"
-              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none placeholder:text-slate-400"
+              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-purple-600/10 focus:border-purple-400 transition-all outline-none placeholder:text-slate-400"
             />
           </div>
 
@@ -182,7 +125,7 @@ export default function CreateTicketForm({ units, categories, buildings }: Creat
               name="description"
               rows={4}
               placeholder="Jelaskan detail masalah yang dialami warga, lokasi spesifik, atau informasi tambahan lainnya..."
-              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-blue-600/10 focus:border-blue-400 transition-all outline-none resize-none placeholder:text-slate-400"
+              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-purple-600/10 focus:border-purple-400 transition-all outline-none resize-none placeholder:text-slate-400"
             ></textarea>
           </div>
         </div>
@@ -198,7 +141,7 @@ export default function CreateTicketForm({ units, categories, buildings }: Creat
           <button
             type="submit"
             disabled={isPending}
-            className="flex-1 flex justify-center items-center gap-2 bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 focus:ring-4 focus:ring-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            className="flex-1 flex justify-center items-center gap-2 bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 focus:ring-4 focus:ring-purple-600/20 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {isPending ? (
               <>
@@ -246,7 +189,7 @@ export default function CreateTicketForm({ units, categories, buildings }: Creat
                 </motion.div>
                 <h3 className="text-xl font-bold text-slate-800 mb-2">Tiket Berhasil Dibuat!</h3>
                 <p className="text-slate-500 mb-2">Nomor tiket Anda adalah:</p>
-                <p className="text-2xl font-bold text-blue-600 mb-6">{createdTicket.ticket_number}</p>
+                <p className="text-2xl font-bold text-purple-600 mb-6">{createdTicket.ticket_number}</p>
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowSuccessModal(false)}
@@ -256,7 +199,7 @@ export default function CreateTicketForm({ units, categories, buildings }: Creat
                   </button>
                   <Link
                     href={`/tickets/${createdTicket.id}/print`}
-                    className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors"
+                    className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors"
                   >
                     <Printer className="w-4 h-4" />
                     Cetak Tiket

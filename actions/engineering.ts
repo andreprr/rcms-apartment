@@ -42,10 +42,9 @@ export async function assignTechnicians(formData: FormData) {
   // 4. Insert assignment baru
   const assignments = technicianIds.map(techId => ({
     ticket_id: ticketId,
-    user_id: techId,
+    engineering_user_id: techId,
     assigned_by: profile.id,
-    assigned_at: new Date().toISOString(),
-    status: 'ACTIVE'
+    is_current: true,
   }))
 
   const { error: assignError } = await supabase

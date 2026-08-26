@@ -39,8 +39,9 @@ export async function GET(request: NextRequest) {
         status,
         created_at,
         ticket_date,
-        units(unit_code, floor, unit_number),
-        complaint_categories(name)
+        unit_code,
+        resident_name,
+        phone_number
       `)
       .order('created_at', { ascending: false })
 

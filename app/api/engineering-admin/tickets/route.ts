@@ -33,12 +33,9 @@ export async function GET() {
         status,
         created_at,
         submitted_at,
-        units(unit_code, floor, unit_number),
-        complaint_categories(name),
-        ticket_assignments(
-          status,
-          users(full_name)
-        )
+        unit_code,
+        resident_name,
+        current_assignee_id
       `)
       .in('status', ['NEW', 'ASSIGNED', 'ON_PROGRESS', 'WAITING_CONFIRMATION'])
       .order('created_at', { ascending: false })
