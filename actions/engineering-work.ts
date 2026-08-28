@@ -3,6 +3,105 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+// Start working on a ticket (ASSIGNED -> ON_PROGRESS)
+export async function startWork(formData: FormData) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Anda harus login.' }
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('id, role, full_name')
+    .eq('auth_user_id', user.id)
+    .single()
+
+  if (!profile || (profile.role !== 'ENGINEERING' && profile.role !== 'ADMIN')) {
+    return { error: 'Anda tidak memiliki hak akses.' }
+  }
+
+  const ticketId = formData.get('ticket_id') as string
+
+  if (!ticketId) {
+    return { error: 'ID Tiket tidak valid.' }
+  }
+
+  // Update status to ON_PROGRESS and set started_at
+  const { error } = await supabase
+    .from('tickets')
+    .update({
+      status: 'ON_PROGRESS',
+      started_at: new Date().toISOString()
+    })
+    .eq('id', ticketId)
+
+  if (error) {
+    return { error: 'Gagal memulai pekerjaan.' }
+  }
+
+  // Add history
+  await supabase.from('ticket_history').insert({
+    ticket_id: ticketId,
+    user_id: profile.id,
+    action: 'START_WORK',
+    description: `Pekerjaan dimulai oleh ${profile.full_name}`
+  })
+
+  revalidatePath('/engineering')
+  revalidatePath('/engineering/task')
+  revalidatePath(`/tickets/${ticketId}`)
+
+  return { success: true }
+}
+
+// Extend work to next day
+export async function extendWork(formData: FormData) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Anda harus login.' }
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('id, role, full_name')
+    .eq('auth_user_id', user.id)
+    .single()
+
+  if (!profile || (profile.role !== 'ENGINEERING' && profile.role !== 'ADMIN')) {
+    return { error: 'Anda tidak memiliki hak akses.' }
+  }
+
+  const ticketId = formData.get('ticket_id') as string
+  const description = formData.get('description') as string
+  const dayNumber = parseInt(formData.get('day_number') as string) || 1
+
+  if (!ticketId) {
+    return { error: 'ID Tiket tidak valid.' }
+  }
+
+  // Create daily log entry with EXTEND action
+  await supabase.from('ticket_daily_logs').insert({
+    ticket_id: ticketId,
+    engineering_id: profile.id,
+    day_number: dayNumber + 1,
+    work_description: description || '',
+    action_type: 'EXTEND',
+  })
+
+  // Add history
+  await supabase.from('ticket_history').insert({
+    ticket_id: ticketId,
+    user_id: profile.id,
+    action: 'EXTEND_WORK',
+    description: `Pekerjaan dilanjutkan ke hari ${dayNumber + 1} oleh ${profile.full_name}`
+  })
+
+  revalidatePath('/engineering/task')
+  revalidatePath(`/tickets/${ticketId}`)
+
+  return { success: true, nextDay: dayNumber + 1 }
+}
+
 // Update ticket stage and add daily note
 export async function updateTicketStage(formData: FormData) {
   const supabase = await createClient()

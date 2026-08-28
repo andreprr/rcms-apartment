@@ -249,9 +249,9 @@ export const ROLE_NAVIGATION: Record<UserRole, NavItem[]> = {
   ADMIN: [
     { name: 'Dashboard Hub', href: '/admin', icon: 'LayoutDashboard' },
     { name: 'User Management', href: '/admin/users', icon: 'Users' },
-    { name: 'Ticket Management', href: '/admin/tickets', icon: 'Ticket' },
+    { name: 'Ticket Control', href: '/admin/tickets', icon: 'Ticket' },
     { name: 'Analytics Global', href: '/admin/analytics', icon: 'BarChart3' },
-    { name: 'Moderasi Rating', href: '/admin/ratings', icon: 'Star' },
+    { name: 'Moderasi Rating', href: '/admin/rating-moderation', icon: 'Star' },
   ],
   RR: [
     { name: 'Dashboard', href: '/rr/dashboard', icon: 'LayoutDashboard' },
@@ -273,13 +273,13 @@ export const ROLE_NAVIGATION: Record<UserRole, NavItem[]> = {
     { name: 'History & Export', href: '/engineering-admin/history', icon: 'FileText' },
   ],
   ENGINEERING: [
-    { name: 'Dashboard', href: '/engineering/dashboard', icon: 'LayoutDashboard' },
-    { name: 'Tickets', href: '/engineering/tickets', icon: 'Ticket' },
-    { name: 'History', href: '/engineering/history', icon: 'Clock' },
+    { name: 'Dashboard', href: '/engineering', icon: 'LayoutDashboard' },
+    { name: 'Task', href: '/engineering/task', icon: 'ClipboardList' },
+    { name: 'Performance', href: '/engineering/performance', icon: 'BarChart3' },
   ],
   PENGURUS: [
-    { name: 'Dashboard', href: '/pengurus/dashboard', icon: 'LayoutDashboard' },
+    { name: 'Dashboard', href: '/pengurus', icon: 'LayoutDashboard' },
     { name: 'Analytics', href: '/pengurus/analytics', icon: 'BarChart3' },
-    { name: 'Rating Management', href: '/pengurus/ratings', icon: 'Star' },
+    { name: 'Rating Management', href: '/pengurus/rating-management', icon: 'Star' },
   ],
 }

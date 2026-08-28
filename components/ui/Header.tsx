@@ -40,6 +40,7 @@ export default function Header({ user }: HeaderProps) {
                 alt={user.full_name}
                 width={36}
                 height={36}
+                unoptimized
                 className="w-9 h-9 rounded-xl object-cover"
               />
             ) : (

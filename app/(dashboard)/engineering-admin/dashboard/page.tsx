@@ -19,7 +19,7 @@ export default async function EngineeringAdminDashboardPage() {
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!profile || profile.role !== 'ENGINEERING_ADMIN') {
+  if (!profile || (profile.role !== 'ENGINEERING_ADMIN' && profile.role !== 'ADMIN')) {
     redirect('/dashboard')
   }
 

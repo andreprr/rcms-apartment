@@ -17,7 +17,6 @@ import {
   Key
 } from 'lucide-react'
 import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
-import { DonutCard } from '@/components/dashboard/RightWidgets'
 import type { UserRole } from '@/types/database'
 
 // Types
@@ -104,12 +103,12 @@ function StatusBadge({ isActive }: { isActive: boolean }) {
   )
 }
 
-export default function AdminUserManagementClient({ initialUsers, userProfile }: AdminUserManagementClientProps) {
+export default function AdminUserManagementClient({ initialUsers }: AdminUserManagementClientProps) {
   const [users, setUsers] = useState(initialUsers)
   const [showModal, setShowModal] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
   const [toggleLoading, setToggleLoading] = useState<string | null>(null)
 
@@ -128,15 +127,15 @@ export default function AdminUserManagementClient({ initialUsers, userProfile }:
     }))
   }
 
-  // Chart data
+  // Chart data (static demo values)
   const chartData = [
-    { day: 'S', value: Math.floor(Math.random() * 5) + 2 },
-    { day: 'M', value: Math.floor(Math.random() * 8) + 3 },
-    { day: 'T', value: Math.floor(Math.random() * 6) + 4 },
-    { day: 'W', value: Math.floor(Math.random() * 7) + 2 },
-    { day: 'T', value: Math.floor(Math.random() * 5) + 3 },
-    { day: 'F', value: Math.floor(Math.random() * 6) + 4 },
-    { day: 'S', value: Math.floor(Math.random() * 3) + 1 },
+    { day: 'S', value: 3 },
+    { day: 'M', value: 7 },
+    { day: 'T', value: 5 },
+    { day: 'W', value: 6 },
+    { day: 'T', value: 4 },
+    { day: 'F', value: 8 },
+    { day: 'S', value: 2 },
   ]
 
   // KPI Stats

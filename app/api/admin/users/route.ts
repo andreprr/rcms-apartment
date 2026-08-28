@@ -1,146 +1,107 @@
 import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
 
-// GET - Fetch all users
-export async function GET() {
+const VALID_ROLES = ['ADMIN', 'RR', 'ENGINEERING_ADMIN', 'ENGINEERING', 'PENGURUS']
+
+// Service Role client - bypasses RLS & has auth.admin privileges
+function getServiceClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
+
+// POST - Create new user (Supabase Auth + public.users insert)
+export async function POST(request: Request) {
   try {
     const supabase = await createClient()
 
-    // Check admin role
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check ADMIN role for requester
     const { data: profile } = await supabase
       .from('users')
       .select('role')
       .eq('auth_user_id', user.id)
       .single()
 
-    if (profile?.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-
-    return NextResponse.json({ users })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error'
-    console.error('Error fetching users:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
-
-// POST - Create new user
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-
-    // Check admin role
-    const { data: { user: adminUser } } = await supabase.auth.getUser()
-    if (!adminUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('auth_user_id', adminUser.id)
-      .single()
-
-    if (profile?.role !== 'ADMIN') {
+    if (!profile || profile.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = await request.json()
-    const { full_name, username, email, password, role } = body
+    const { full_name, username, email, password, division, role } = body
 
-    if (!full_name || !username || !email || !password || !role) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!full_name || !username || !email || !password || !division || !role) {
+      return NextResponse.json({ error: 'Semua field wajib diisi' }, { status: 400 })
     }
 
-    // Create auth user using admin API
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    if (!VALID_ROLES.includes(role)) {
+      return NextResponse.json({ error: 'Role tidak valid' }, { status: 400 })
+    }
+
+    const service = getServiceClient()
+
+    // Guard against duplicate email/username before touching Auth
+    const { data: dup } = await service
+      .from('users')
+      .select('email, username')
+      .or(`email.eq.${email},username.eq.${username}`)
+      .maybeSingle()
+
+    if (dup) {
+      return NextResponse.json(
+        { error: 'Email atau Username sudah terdaftar (Duplicate Key)' },
+        { status: 400 }
+      )
+    }
+
+    // Create auth user with Service Role privileges
+    const { data: authResult, error: authError } = await service.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name, role }
     })
 
     if (authError) {
-      console.error('Auth error:', authError)
+      // Handle duplicate email error from Supabase directly
+      if (authError.message && /already? registered|already been registered|duplicate/i.test(authError.message)) {
+        return NextResponse.json({ error: 'Email sudah terdaftar' }, { status: 400 })
+      }
       return NextResponse.json({ error: authError.message }, { status: 400 })
     }
 
-    // Create user profile
-    const { error: profileError } = await supabase.from('users').insert({
-      auth_user_id: authData.user?.id,
-      full_name,
-      username,
-      email,
-      role
-    })
+    const authUserId = authResult.user!.id
 
-    if (profileError) {
-      console.error('Profile error:', profileError)
-      // Rollback auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(authData.user?.id)
-      return NextResponse.json({ error: profileError.message }, { status: 400 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Internal server error'
-    console.error('Error creating user:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
-}
-
-// PATCH - Update user status
-export async function PATCH(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-
-    // Check admin role
-    const { data: { user: adminUser } } = await supabase.auth.getUser()
-    if (!adminUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
+    // Insert profile into public.users (service client bypasses RLS)
+    const { data: newUser, error: userError } = await service
       .from('users')
-      .select('role')
-      .eq('auth_user_id', adminUser.id)
+      .insert({
+        auth_user_id: authUserId,
+        full_name,
+        username,
+        email,
+        division,
+        role,
+        is_active: true,
+      })
+      .select()
       .single()
 
-    if (profile?.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (userError) {
+      // Cleanup auth user if profile insert fails (avoid orphan account)
+      await service.auth.admin.deleteUser(authUserId)
+      return NextResponse.json({ error: userError.message }, { status: 400 })
     }
 
-    const body = await request.json()
-    const { userId, is_active } = body
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
-    }
-
-    const { error } = await supabase
-      .from('users')
-      .update({ is_active })
-      .eq('id', userId)
-
-    if (error) throw error
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ user: newUser, success: true })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error'
-    console.error('Error updating user:', message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

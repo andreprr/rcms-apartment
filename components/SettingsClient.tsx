@@ -155,7 +155,7 @@ export default function SettingsClient({ profile }: SettingsClientProps) {
             <div className="relative">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-200 to-purple-300 overflow-hidden shadow-md flex items-center justify-center text-purple-700 text-3xl font-bold">
                 {avatarUrl ? (
-                  <Image src={avatarUrl} alt="Avatar" width={80} height={80} className="w-20 h-20 rounded-2xl object-cover" />
+                  <Image src={avatarUrl} alt="Avatar" width={80} height={80} unoptimized className="w-20 h-20 rounded-2xl object-cover" />
                 ) : profile.full_name.charAt(0).toUpperCase()}
               </div>
               {uploading && (

@@ -2,32 +2,31 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import RRDashboardContent from '@/components/rr/RRDashboardContent'
+import EngineeringPerformanceClient from '@/components/engineering/EngineeringPerformanceClient'
 import type { UserRole } from '@/types/database'
 
-export default async function RRPage() {
+export default async function EngineeringPerformancePage() {
   const supabase = await createClient()
 
-  // Check user auth
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Check RR or Admin role
   const { data: profile } = await supabase
     .from('users')
     .select('id, role, full_name, division, avatar_url')
     .eq('auth_user_id', user.id)
     .single()
 
-  if (!profile || (profile.role !== 'RR' && profile.role !== 'ADMIN')) {
+  if (!profile || profile.role !== 'ENGINEERING') {
     redirect('/dashboard')
   }
+
   const userProfile = {
-    full_name: profile.full_name,
-    division: profile.division || 'RR',
+    full_name: profile.full_name || 'Teknisi',
+    division: profile.division || 'Engineering',
     avatar_url: profile.avatar_url,
     role: profile.role as UserRole
   }
 
-  return <RRDashboardContent userProfile={userProfile} />
+  return <EngineeringPerformanceClient userProfile={userProfile} />
 }
