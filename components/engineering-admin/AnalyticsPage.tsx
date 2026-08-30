@@ -47,14 +47,15 @@ export default function EngineeringAdminAnalyticsPage() {
     waiting: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length,
   }), [tickets])
 
-  // Technician performance chart data (simulated from available data)
+  // Technician performance chart data (derived from actual assignment data)
   const chartData = useMemo(() => {
-    const techNames = ['Andi', 'Budi', 'Dewi', 'Eko', 'Fajar']
-    return techNames.map(name => ({
-      day: name,
-      value: Math.floor(Math.random() * 12) + 2,
+    // Group tickets by status to show workload distribution
+    const statuses = ['NEW', 'ASSIGNED', 'ON_PROGRESS', 'WAITING_CONFIRMATION', 'COMPLETED']
+    return statuses.map(status => ({
+      day: status.replace('_', ' '),
+      value: tickets.filter(t => t.status === status).length,
     }))
-  }, [refreshKey])
+  }, [tickets])
 
   // Critical queue items (tickets waiting too long)
   const criticalQueue = useMemo(() => {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Ticket,
@@ -12,6 +12,7 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   ChevronRight,
   X,
   Calendar,
@@ -20,8 +21,82 @@ import {
   ImageIcon,
   Plus,
 } from 'lucide-react'
-import Image from 'next/image'
 import type { UserRole, TicketStage } from '@/types/database'
+import {
+  startInvestigation,
+  rescheduleTicket,
+  submitInvestigation,
+} from '@/actions/tickets'
+
+// ============================================================================
+// CLIENT-SIDE IMAGE COMPRESSION
+// Mengubah foto menjadi JPEG terkompresi (< ~500 KB) sebelum dikirim ke server
+// action, agar tidak memicu "Body exceeded 1 MB limit".
+// ============================================================================
+
+// Resize + compress gambar menjadi base64 JPEG.
+const compressImageFile = (file: File, maxWidth = 1200, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = (event) => {
+        const img = new window.Image()
+        img.src = event.target?.result as string
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width)
+          width = maxWidth
+        }
+
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+        ctx?.drawImage(img, 0, 0, width, height)
+
+        // Compress to JPEG with quality 0.7
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality)
+        resolve(compressedBase64)
+      }
+      img.onerror = (err) => reject(err)
+    }
+    reader.onerror = (err) => reject(err)
+  })
+}
+
+// Konversi dataURL base64 -> File (JPEG) siap dikirim via FormData.
+const base64ToFile = (dataUrl: string, filename: string): File => {
+  const [meta, data] = dataUrl.split(',')
+  const mime = meta.match(/data:(.*?);/)?.[1] || 'image/jpeg'
+  const bin = atob(data)
+  const len = bin.length
+  const buf = new Uint8Array(len)
+  for (let i = 0; i < len; i++) buf[i] = bin.charCodeAt(i)
+  return new File([buf], filename, { type: mime })
+}
+
+// Proses seluruh file terpilih -> array File JPEG terkompresi.
+const compressFiles = async (input: FileList | File[], maxWidth = 1200, quality = 0.7): Promise<File[]> => {
+  const files = Array.from(input)
+  const out: File[] = []
+  for (const file of files) {
+    try {
+      const base = await compressImageFile(file, maxWidth, quality)
+      const ext = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '')
+      const name = file.name.replace(/\.\w+$/, '') + '.' + (ext === 'jpeg' ? 'jpg' : ext)
+      out.push(base64ToFile(base, name))
+    } catch {
+      // Fallback: kirim file asli jika kompresi gagal.
+      out.push(file)
+    }
+  }
+  return out
+}
+
 
 interface Ticket {
   id: string
@@ -35,6 +110,14 @@ interface Ticket {
   submitted_at: string | null
   unit_code: string
   resident_name: string
+  priority?: string
+  assigned_technician_ids?: string[] | null
+  required_materials?: string[] | null
+  investigation_report?: string | null
+  finish_notes?: string | null
+  rework_reason?: string | null
+  rework_count?: number | null
+  is_rework?: boolean | null
 }
 
 interface DailyLog {
@@ -59,14 +142,9 @@ const STAGES: { value: TicketStage; label: string; color: string; bgColor: strin
   { value: 'FINISHING', label: 'Finishing', color: 'text-emerald-600', bgColor: 'bg-emerald-500' },
 ]
 
-const PHOTO_TYPES = [
-  { value: 'BEFORE', label: 'Sebelum', color: 'text-rose-600', bg: 'bg-rose-100' },
-  { value: 'PROGRESS', label: 'Proses', color: 'text-amber-600', bg: 'bg-amber-100' },
-  { value: 'AFTER', label: 'Sesudah', color: 'text-emerald-600', bg: 'bg-emerald-100' },
-]
-
 function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const initialTicketId = searchParams.get('ticket')
 
   const [tickets, setTickets] = useState<Ticket[]>([])
@@ -75,17 +153,15 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
   const [loading, setLoading] = useState(true)
   const [showWorkModal, setShowWorkModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [activeTab, setActiveTab] = useState<'assigned' | 'inProgress' | 'waiting'>('assigned')
+  const [activeTab, setActiveTab] = useState<'assigned' | 'investigation' | 'onprogress' | 'waiting'>('assigned')
   const [showPhotoModal, setShowPhotoModal] = useState(false)
-  const [photoUrls, setPhotoUrls] = useState<string[]>([])
-
-  // Guard against undefined userProfile
-  const safeUserProfile = useMemo(() => ({
-    full_name: userProfile?.full_name || 'Teknisi',
-    division: userProfile?.division || 'Engineering',
-    avatar_url: userProfile?.avatar_url,
-    role: userProfile?.role || 'ENGINEERING' as UserRole
-  }), [userProfile])
+  const [photoUrls, setPhotoUrls] = useState<{ id: string; storage_path: string; photo_type: string; file_name: string }[]>([])
+  const [photoLightbox, setPhotoLightbox] = useState<string | null>(null)
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false)
+  const [rescheduleTicketSel, setRescheduleTicketSel] = useState<Ticket | null>(null)
+  const [showInvestigationModal, setShowInvestigationModal] = useState(false)
+  const [investigationTicket, setInvestigationTicket] = useState<Ticket | null>(null)
+  const [pendingStage, setPendingStage] = useState(false)
 
   useEffect(() => {
     async function fetchTickets() {
@@ -112,22 +188,14 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
   }, [initialTicketId, refreshKey])
 
   useEffect(() => {
-    if (selectedTicket) {
-      fetchDailyLogs(selectedTicket.id)
-    }
+    if (!selectedTicket) return
+    let active = true
+    fetch(`/api/engineering/daily-logs?ticket_id=${selectedTicket.id}`)
+      .then(r => r.json())
+      .then(d => { if (active && d.logs) setDailyLogs(d.logs) })
+      .catch(() => {})
+    return () => { active = false }
   }, [selectedTicket])
-
-  async function fetchDailyLogs(ticketId: string) {
-    try {
-      const response = await fetch(`/api/engineering/daily-logs?ticket_id=${ticketId}`)
-      const data = await response.json()
-      if (data.logs) {
-        setDailyLogs(data.logs)
-      }
-    } catch (error) {
-      console.error('Failed to fetch daily logs:', error)
-    }
-  }
 
   const handleRefresh = () => setRefreshKey(k => k + 1)
 
@@ -135,10 +203,14 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
     switch (activeTab) {
       case 'assigned':
         return tickets.filter(t => t.status === 'ASSIGNED')
-      case 'inProgress':
-        return tickets.filter(t => t.status === 'ON_PROGRESS')
+      case 'investigation':
+        return tickets.filter(t => t.status === 'INVESTIGATION' || t.status === 'NEEDS_ANALYSIS')
+      case 'onprogress':
+        // "Diproses"/"On Progress": aktif dikerjakan (ON_PROGRESS / INVESTIGATION).
+        // TIDAK pernah memuat REVIEW_FINISH (yang masuk ke tab "Menunggu").
+        return tickets.filter(t => t.status === 'ON_PROGRESS' || t.status === 'INVESTIGATION')
       case 'waiting':
-        return tickets.filter(t => t.status === 'WAITING_CONFIRMATION')
+        return tickets.filter(t => t.status === 'REVIEW_FINISH' || t.status === 'WAITING_CLIENT_CONFIRMATION' || t.status === 'RESCHEDULED')
       default:
         return tickets
     }
@@ -149,12 +221,38 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
     setShowWorkModal(true)
   }
 
+  async function runInvestigation(ticket: Ticket) {
+    setPendingStage(true)
+    const res = await startInvestigation(ticket.id)
+    setPendingStage(false)
+    if (res?.error) {
+      console.error(res.error)
+    } else {
+      handleRefresh()
+    }
+  }
+
+  function openReschedule(ticket: Ticket) {
+    setRescheduleTicketSel(ticket)
+    setShowRescheduleModal(true)
+  }
+
+  function openInvestigation(ticket: Ticket) {
+    setInvestigationTicket(ticket)
+    setShowInvestigationModal(true)
+  }
+
   async function fetchTicketPhotos(ticketId: string) {
     try {
       const response = await fetch(`/api/tickets/${ticketId}/photos`)
       const data = await response.json()
       if (data.photos) {
-        setPhotoUrls(data.photos.map((p: any) => p.storage_path))
+        setPhotoUrls(data.photos.map((p: any) => ({
+          id: p.id,
+          storage_path: p.storage_path,
+          photo_type: p.photo_type,
+          file_name: p.file_name,
+        })))
       }
     } catch (error) {
       console.error('Failed to fetch photos:', error)
@@ -170,9 +268,16 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
   function getStatusBadge(status: string) {
     const styles: Record<string, { bg: string; text: string; label: string }> = {
       ASSIGNED: { bg: 'bg-indigo-50', text: 'text-indigo-700', label: 'DITUGASKAN' },
-      ON_PROGRESS: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'DIPROSES' },
+      INVESTIGATION: { bg: 'bg-cyan-50', text: 'text-cyan-700', label: 'SEDANG INVESTIGASI' },
+      NEEDS_ANALYSIS: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'BUTUH ANALISIS' },
+      RESCHEDULED: { bg: 'bg-purple-50', text: 'text-purple-700', label: 'RESCHEDULE' },
+      ON_PROGRESS: { bg: 'bg-orange-50', text: 'text-orange-700', label: 'DIPROSES' },
+      REVIEW_FINISH: { bg: 'bg-teal-50', text: 'text-teal-700', label: 'MENUNGGU REVIEW ADMIN' },
+      WAITING_CLIENT_CONFIRMATION: { bg: 'bg-rose-50', text: 'text-rose-700', label: 'MENUNGGU TANGGAPAN CLIENT' },
+      REWORK_REQ: { bg: 'bg-red-50', text: 'text-red-700', label: 'PERMINTAAN REWORK CLIENT' },
       WAITING_CONFIRMATION: { bg: 'bg-purple-50', text: 'text-purple-700', label: 'MENUNGGU KONFIRMASI' },
       COMPLETED: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'SELESAI' },
+      FINISHED: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'SELESAI' },
       REWORK: { bg: 'bg-rose-50', text: 'text-rose-700', label: 'REWORK' },
     }
     return styles[status] || { bg: 'bg-slate-50', text: 'text-slate-700', label: status }
@@ -196,7 +301,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Task Management</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Kelola dan kerjakan tiket perbaikan Anda.</p>
+            <p className="text-sm text-slate-500 mt-0.5">Kelola dan kerjakan tiket perbaikan Anda, {userProfile?.full_name || 'Teknisi'}.</p>
           </div>
           <Link
             href="/engineering"
@@ -217,8 +322,9 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
         <div className="flex border-b border-purple-100">
           {[
             { key: 'assigned', label: 'Ditugaskan', count: tickets.filter(t => t.status === 'ASSIGNED').length },
-            { key: 'inProgress', label: 'Diproses', count: tickets.filter(t => t.status === 'ON_PROGRESS').length },
-            { key: 'waiting', label: 'Menunggu Konfirmasi', count: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length },
+            { key: 'investigation', label: 'Investigasi', count: tickets.filter(t => t.status === 'INVESTIGATION' || t.status === 'NEEDS_ANALYSIS').length },
+            { key: 'onprogress', label: 'Diproses', count: tickets.filter(t => t.status === 'ON_PROGRESS' || t.status === 'INVESTIGATION').length },
+            { key: 'waiting', label: 'Menunggu', count: tickets.filter(t => t.status === 'REVIEW_FINISH' || t.status === 'WAITING_CLIENT_CONFIRMATION' || t.status === 'RESCHEDULED').length },
           ].map(tab => (
             <button
               key={tab.key}
@@ -258,6 +364,11 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badge.bg} ${badge.text}`}>
                           {badge.label}
                         </span>
+                        {(ticket.is_rework || (ticket.rework_count ?? 0) > 0) && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white animate-pulse">
+                            ⚠️ Dikerjakan Ulang (Rework)
+                          </span>
+                        )}
                         {ticket.current_stage && (
                           <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
                             {ticket.current_stage}
@@ -265,6 +376,14 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
                         )}
                       </div>
                       <p className="text-slate-700 font-medium mb-2">{ticket.problem}</p>
+                      {(ticket.is_rework || (ticket.rework_count ?? 0) > 0) && ticket.rework_reason && (
+                        <div className="mb-2 p-3 bg-red-50/70 border border-red-200 rounded-xl text-sm">
+                          <p className="font-semibold text-red-700 mb-0.5 flex items-center gap-1.5">
+                            <AlertTriangle className="w-4 h-4" /> Komplain Client:
+                          </p>
+                          <p className="text-slate-600 whitespace-pre-wrap">{ticket.rework_reason}</p>
+                        </div>
+                      )}
                       <div className="flex items-center gap-4 text-sm text-slate-500">
                         <span className="flex items-center gap-1">
                           <Building2 className="w-3.5 h-3.5" />
@@ -277,26 +396,78 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
                       {ticket.status === 'ASSIGNED' && (
+                        <>
+                          <button
+                            onClick={() => runInvestigation(ticket)}
+                            disabled={pendingStage}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            {pendingStage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                            Mulai Investigasi
+                          </button>
+                          <button
+                            onClick={() => openReschedule(ticket)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                          >
+                            <Calendar className="w-4 h-4" />
+                            Reschedule
+                          </button>
+                        </>
+                      )}
+                      {ticket.status === 'INVESTIGATION' && (
                         <button
-                          onClick={() => startWork(ticket)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                          onClick={() => openInvestigation(ticket)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl transition-colors"
                         >
-                          <Play className="w-4 h-4" />
-                          Mulai Bekerja
+                          <FileText className="w-4 h-4" />
+                          Kirim Laporan Investigasi
                         </button>
+                      )}
+                      {ticket.status === 'NEEDS_ANALYSIS' && (
+                        <span className="px-3 py-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl">
+                          Menunggu Analisis Admin
+                        </span>
                       )}
                       {ticket.status === 'ON_PROGRESS' && (
                         <button
                           onClick={() => startWork(ticket)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-xl transition-colors"
                         >
                           <FileText className="w-4 h-4" />
-                          Lanjutkan
+                          Lanjutkan / Finish
                         </button>
                       )}
-                      {(ticket.status === 'COMPLETED' || ticket.status === 'WAITING_CONFIRMATION') && (
+                      {ticket.status === 'REVIEW_FINISH' && (
+                        <>
+                          <span className="px-3 py-2 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-xl">
+                            Menunggu Review Admin
+                          </span>
+                          <button
+                            onClick={() => openPhotoModal(ticket)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-sm font-medium rounded-xl transition-colors border border-emerald-200"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            Lihat Foto
+                          </button>
+                        </>
+                      )}
+                      {ticket.status === 'WAITING_CLIENT_CONFIRMATION' && (
+                        <>
+                          <span className="px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl">
+                            Menunggu Tanggapan Client
+                          </span>
+                          <button
+                            onClick={() => openPhotoModal(ticket)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-sm font-medium rounded-xl transition-colors border border-emerald-200"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            Lihat Foto
+                          </button>
+                        </>
+                      )}
+                      {(ticket.status === 'COMPLETED' || ticket.status === 'FINISHED' || ticket.status === 'RESCHEDULED') && (
                         <button
                           onClick={() => openPhotoModal(ticket)}
                           className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-sm font-medium rounded-xl transition-colors border border-emerald-200"
@@ -330,11 +501,38 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
               setShowWorkModal(false)
               setSelectedTicket(null)
             }}
-            onSuccess={() => {
+            onSuccess={(status) => {
+              // Instan update status lokal agar UI langsung berubah (mis. "Menunggu")
+              if (status && selectedTicket) {
+                setTickets(prev =>
+                  prev.map(t => (t.id === selectedTicket.id ? { ...t, status } : t))
+                )
+              }
+              router.refresh()
               handleRefresh()
               setShowWorkModal(false)
               setSelectedTicket(null)
             }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showRescheduleModal && rescheduleTicketSel && (
+          <RescheduleModal
+            ticket={rescheduleTicketSel}
+            onClose={() => { setShowRescheduleModal(false); setRescheduleTicketSel(null) }}
+            onSuccess={() => { handleRefresh(); setShowRescheduleModal(false); setRescheduleTicketSel(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showInvestigationModal && investigationTicket && (
+          <InvestigationModal
+            ticket={investigationTicket}
+            onClose={() => { setShowInvestigationModal(false); setInvestigationTicket(null) }}
+            onSuccess={() => { handleRefresh(); setShowInvestigationModal(false); setInvestigationTicket(null) }}
           />
         )}
       </AnimatePresence>
@@ -350,6 +548,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
               setShowPhotoModal(false)
               setSelectedTicket(null)
               setPhotoUrls([])
+              setPhotoLightbox(null)
             }}
           >
             <motion.div
@@ -369,6 +568,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
                     setShowPhotoModal(false)
                     setSelectedTicket(null)
                     setPhotoUrls([])
+                    setPhotoLightbox(null)
                   }}
                   className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
                 >
@@ -382,23 +582,62 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
                     <p className="text-slate-500">Tidak ada foto tersedia</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    {photoUrls.map((url, i) => (
-                      <div key={i} className="aspect-video bg-slate-100 rounded-xl overflow-hidden">
-                        <Image
-                          src={url}
-                          alt={`Foto ${i + 1}`}
-                          width={400}
-                          height={225}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ))}
+                  <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
+                    {(['BEFORE', 'PROGRESS', 'AFTER', 'OTHER'] as const).map(type => {
+                      const items = photoUrls.filter(p => p.photo_type === type)
+                      if (items.length === 0) return null
+                      const label =
+                        type === 'BEFORE' ? 'Foto Sebelum (Before)'
+                        : type === 'PROGRESS' ? 'Foto Proses'
+                        : type === 'AFTER' ? 'Foto Sesudah (After)'
+                        : type
+                      return (
+                        <div key={type}>
+                          <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">
+                            📸 {label} <span className="text-slate-300">({items.length})</span>
+                          </h4>
+                          <div className="grid grid-cols-2 gap-3">
+                            {items.map(p => (
+                              <button
+                                key={p.id}
+                                onClick={() => setPhotoLightbox(p.storage_path)}
+                                className="group aspect-video bg-slate-100 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:scale-105 transition-transform"
+                              >
+                                <img
+                                  src={p.storage_path}
+                                  alt={`${label} - ${p.file_name}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
             </motion.div>
           </motion.div>
+        )}
+
+        {/* Lightbox tampilan ukuran penuh — resolusi penuh tanpa distorsi */}
+        {photoLightbox && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4" onClick={() => setPhotoLightbox(null)}>
+            <button
+              onClick={() => setPhotoLightbox(null)}
+              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+              aria-label="Tutup preview"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={photoLightbox}
+              alt="Preview foto resolusi penuh"
+              onClick={e => e.stopPropagation()}
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            />
+          </div>
         )}
       </AnimatePresence>
     </div>
@@ -409,14 +648,16 @@ interface WorkModalProps {
   ticket: Ticket
   dailyLogs: DailyLog[]
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (status?: string) => void
 }
 
 function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
   const [stage, setStage] = useState<TicketStage>(ticket.current_stage as TicketStage || 'INSPECTION')
   const [workDescription, setWorkDescription] = useState('')
-  const [photoType, setPhotoType] = useState<'BEFORE' | 'PROGRESS' | 'AFTER'>('BEFORE')
-  const [files, setFiles] = useState<File[]>([])
+  // Upload foto dikategorikan: Sebelum (wajib Day 1), Proses (opsional), Sesudah (wajib Klaim Finish)
+  const [beforeFiles, setBeforeFiles] = useState<File[]>([])
+  const [processFiles, setProcessFiles] = useState<File[]>([])
+  const [afterFiles, setAfterFiles] = useState<File[]>([])
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [action, setAction] = useState<'update' | 'extend' | 'finish'>('update')
@@ -435,10 +676,20 @@ function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
       formData.append('action_type', action === 'update' ? 'EXTEND' : action.toUpperCase())
       formData.append('day_number', String(dayNumber))
 
-      files.forEach((file, i) => {
-        formData.append(`file_${i}`, file)
-        formData.append(`file_type_${i}`, photoType)
-      })
+      const appendCategorizedFiles = () => {
+        let fileIdx = 0
+        const append = (bucket: File[], type: string) => {
+          bucket.forEach(file => {
+            formData.append(`file_${fileIdx}`, file)
+            formData.append(`file_type_${fileIdx}`, type)
+            fileIdx++
+          })
+        }
+        append(beforeFiles, 'BEFORE')
+        append(processFiles, 'PROGRESS')
+        append(afterFiles, 'AFTER')
+      }
+      appendCategorizedFiles()
 
       const response = await fetch('/api/engineering/work-action', {
         method: 'POST',
@@ -453,6 +704,7 @@ function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
         return
       }
 
+      // "Simpan Progress" / "Extend" -> status tetap ON_PROGRESS (tidak ada perubahan).
       onSuccess()
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan')
@@ -460,10 +712,66 @@ function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
     setIsPending(false)
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files) {
-      setFiles(Array.from(e.target.files))
+  // Handler terpisah khusus "Klaim Finish" — TIDAK memakai jalur simpan progress.
+  // Update status di DB langsung ke REVIEW_FINISH ("Menunggu Review Admin").
+  async function handleFinish() {
+    if (afterFiles.length === 0) {
+      setError('Foto sesudah (After) wajib dilampirkan untuk Klaim Finish.')
+      return
     }
+    setIsPending(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('ticket_id', ticket.id)
+      formData.append('stage', stage)
+      formData.append('work_description', workDescription)
+      formData.append('action_type', 'FINISH')
+      formData.append('day_number', String(dayNumber))
+
+      const appendCategorizedFiles = () => {
+        let fileIdx = 0
+        const append = (bucket: File[], type: string) => {
+          bucket.forEach(file => {
+            formData.append(`file_${fileIdx}`, file)
+            formData.append(`file_type_${fileIdx}`, type)
+            fileIdx++
+          })
+        }
+        append(beforeFiles, 'BEFORE')
+        append(processFiles, 'PROGRESS')
+        append(afterFiles, 'AFTER')
+      }
+      appendCategorizedFiles()
+
+      const response = await fetch('/api/engineering/work-action', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || result.error) {
+        setError(result.error || 'Terjadi kesalahan')
+        setIsPending(false)
+        return
+      }
+
+      // Langsung pindahkan tiket ke "Menunggu" (REVIEW_FINISH) di UI.
+      onSuccess('REVIEW_FINISH')
+    } catch (err: any) {
+      setError(err.message || 'Terjadi kesalahan')
+    }
+    setIsPending(false)
+  }
+
+  async function handleBucketChange(bucket: 'BEFORE' | 'PROGRESS' | 'AFTER', e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return
+    const compressed = await compressFiles(e.target.files)
+    if (bucket === 'BEFORE') setBeforeFiles(compressed)
+    else if (bucket === 'PROGRESS') setProcessFiles(compressed)
+    else setAfterFiles(compressed)
   }
 
   return (
@@ -567,37 +875,64 @@ function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
             />
           </div>
 
-          <div>
+          <div className="space-y-4">
             <label className="text-sm font-semibold text-slate-700 mb-2 block flex items-center gap-2">
               <Camera className="w-4 h-4" />
-              Upload Foto
-              <span className="text-xs font-normal text-slate-400">(Wajib untuk Day 1: foto BEFORE)</span>
+              Upload Foto (dikategorikan)
             </label>
-            <div className="flex gap-2 mb-2">
-              {PHOTO_TYPES.map((type) => (
-                <button
-                  key={type.value}
-                  onClick={() => setPhotoType(type.value as typeof photoType)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    photoType === type.value
-                      ? `${type.bg} ${type.color}`
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  {type.label}
-                </button>
-              ))}
+
+            {/* Foto Sebelum (wajib Day 1 / awal kerja) */}
+            <div className="p-3 rounded-xl border border-rose-200 bg-rose-50/40">
+              <label className="text-xs font-bold text-rose-700 uppercase tracking-wide block mb-2">
+                📸 Foto Sebelum (Before)
+                <span className="ml-2 text-[10px] font-medium text-rose-400 normal-case">Wajib Day 1 / awal kerja</span>
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={e => handleBucketChange('BEFORE', e)}
+                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-rose-100 file:text-rose-700 hover:file:bg-rose-200"
+              />
+              {beforeFiles.length > 0 && (
+                <p className="text-xs text-slate-500 mt-2">{beforeFiles.length} file dipilih</p>
+              )}
             </div>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileChange}
-              className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
-            />
-            {files.length > 0 && (
-              <p className="text-xs text-slate-500 mt-2">{files.length} file dipilih</p>
-            )}
+
+            {/* Foto Proses (opsional) */}
+            <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/40">
+              <label className="text-xs font-bold text-amber-700 uppercase tracking-wide block mb-2">
+                📸 Foto Proses <span className="ml-2 text-[10px] font-medium text-amber-400 normal-case">Opsional</span>
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={e => handleBucketChange('PROGRESS', e)}
+                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200"
+              />
+              {processFiles.length > 0 && (
+                <p className="text-xs text-slate-500 mt-2">{processFiles.length} file dipilih</p>
+              )}
+            </div>
+
+            {/* Foto Sesudah (wajib Klaim Finish) */}
+            <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50/40">
+              <label className="text-xs font-bold text-emerald-700 uppercase tracking-wide block mb-2">
+                📸 Foto Sesudah (After)
+                <span className="ml-2 text-[10px] font-medium text-emerald-400 normal-case">Wajib saat Klaim Finish</span>
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={e => handleBucketChange('AFTER', e)}
+                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200"
+              />
+              {afterFiles.length > 0 && (
+                <p className="text-xs text-slate-500 mt-2">{afterFiles.length} file dipilih</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -630,12 +965,153 @@ function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
               Extend / Lanjut Day {dayNumber + 1}
             </button>
             <button
-              onClick={() => { setAction('finish'); handleSubmit() }}
-              disabled={isPending || files.length === 0}
+              onClick={handleFinish}
+              disabled={isPending || afterFiles.length === 0}
               className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4" />
               Klaim Finish
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Modal Reschedule (Teknisi) - butuh foto bukti + alasan -> status RESCHEDULED
+function RescheduleModal({ ticket, onClose, onSuccess }: { ticket: Ticket; onClose: () => void; onSuccess: () => void }) {
+  const [reason, setReason] = useState('')
+  const [files, setFiles] = useState<File[]>([])
+  const [isPending, setIsPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit() {
+    if (!reason.trim()) { setError('Alasan reschedule wajib diisi.'); return }
+    setIsPending(true)
+    setError(null)
+    const fd = new FormData()
+    fd.set('ticket_id', ticket.id)
+    fd.set('reason', reason)
+    files.forEach((f, i) => fd.append(`file_${i}`, f))
+    const res = await rescheduleTicket(fd)
+    setIsPending(false)
+    if (res?.error) { setError(res.error); return }
+    onSuccess()
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={onClose} />
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl shadow-2xl border border-slate-200/60 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-purple-50/50 to-white/50 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Reschedule Jadwal</h3>
+            <p className="text-sm text-slate-500">{ticket.ticket_number}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>}
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block flex items-center gap-2">
+              <Camera className="w-4 h-4" /> Foto Bukti (client tidak ada / tidak bisa ditemui)
+            </label>
+            <input type="file" accept="image/*" multiple onChange={async e => { setFiles(await compressFiles(e.target.files || [])) }} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100" />
+            {files.length > 0 && <p className="text-xs text-slate-500 mt-2">{files.length} file dipilih</p>}
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">Alasan Reschedule</label>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              rows={3}
+              placeholder="Contoh: Client sedang di luar kota"
+              className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 transition-all outline-none resize-none text-sm"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-3 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors">Batal</button>
+            <button onClick={handleSubmit} disabled={isPending} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50">
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+              Ajukan Reschedule
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Modal Laporan Investigasi (Teknisi) - foto detail + deskripsi + bahan -> NEEDS_ANALYSIS
+function InvestigationModal({ ticket, onClose, onSuccess }: { ticket: Ticket; onClose: () => void; onSuccess: () => void }) {
+  const [report, setReport] = useState('')
+  const [materials, setMaterials] = useState('')
+  const [files, setFiles] = useState<File[]>([])
+  const [isPending, setIsPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit() {
+    if (!report.trim()) { setError('Detail laporan kerusakan wajib diisi.'); return }
+    if (!materials.trim()) { setError('Daftar bahan/material wajib diisi.'); return }
+    setIsPending(true)
+    setError(null)
+    const fd = new FormData()
+    fd.set('ticket_id', ticket.id)
+    fd.set('investigation_report', report)
+    fd.set('required_materials', materials)
+    files.forEach((f, i) => fd.append(`file_${i}`, f))
+    const res = await submitInvestigation(fd)
+    setIsPending(false)
+    if (res?.error) { setError(res.error); return }
+    onSuccess()
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={onClose} />
+      <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative bg-white rounded-3xl shadow-2xl border border-slate-200/60 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-amber-50/50 to-white/50 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Laporan Investigasi</h3>
+            <p className="text-sm text-slate-500">{ticket.ticket_number}</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>}
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block flex items-center gap-2">
+              <Camera className="w-4 h-4" /> Foto Detail Kerusakan
+            </label>
+            <input type="file" accept="image/*" multiple onChange={async e => { setFiles(await compressFiles(e.target.files || [])) }} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100" />
+            {files.length > 0 && <p className="text-xs text-slate-500 mt-2">{files.length} file dipilih</p>}
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">Detail Deskripsi Kerusakan</label>
+            <textarea
+              value={report}
+              onChange={e => setReport(e.target.value)}
+              rows={4}
+              placeholder="Deskripsi detail kondisi kerusakan..."
+              className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-all outline-none resize-none text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">Bahan / Material yang Dibutuhkan</label>
+            <textarea
+              value={materials}
+              onChange={e => setMaterials(e.target.value)}
+              rows={3}
+              placeholder="Satu per baris. Contoh:&#10;Pipa PVC 1/2 inch&#10;Lem pipa&#10;Selotip"
+              className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 transition-all outline-none resize-none text-sm"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-3 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors">Batal</button>
+            <button onClick={handleSubmit} disabled={isPending} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50">
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+              Kirim Laporan
             </button>
           </div>
         </div>

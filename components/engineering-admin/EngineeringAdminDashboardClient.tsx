@@ -14,13 +14,24 @@ import {
   RefreshCw,
   Users,
   Plus,
-  Filter
+  Filter,
+  Search,
+  Eye,
+  Edit3,
+  Calendar,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  FileSearch,
+  Camera
 } from 'lucide-react'
 import Link from 'next/link'
 import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
 import { ReminderCard, DonutCard } from '@/components/dashboard/RightWidgets'
 import AssignTechniciansModal from '@/components/engineering-admin/AssignTechniciansModal'
 import AutoFinishTimer from '@/components/engineering-admin/AutoFinishTimer'
+import RescheduleModal from '@/components/engineering-admin/RescheduleModal'
+import InspectionReviewModal from '@/components/engineering-admin/InspectionReviewModal'
 import type { UserRole } from '@/types/database'
 
 interface Ticket {
@@ -32,13 +43,24 @@ interface Ticket {
   submitted_at: string | null
   unit_code: string
   resident_name: string
+  phone_number?: string
+  description?: string
   current_assignee_id: string | null
+  assigned_technician_ids?: string[] | null
+  priority: 'NORMAL' | 'URGENT'
+  scheduled_at: string | null
+  initial_inspection_notes: string | null
+  inspection_completed_at: string | null
+  inspection_approved_at?: string | null
+  investigation_report?: string | null
+  required_materials?: string[] | null
 }
 
 interface Stats {
   total: number
   new: number
   assigned: number
+  waitingAnalysis: number
   inProgress: number
   waitingConfirmation: number
 }
@@ -57,7 +79,9 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
   const [loading, setLoading] = useState(true)
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [showAssignModal, setShowAssignModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<'incoming' | 'active' | 'pending'>('incoming')
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false)
+  const [showInspectionModal, setShowInspectionModal] = useState(false)
+  const [activeTab, setActiveTab] = useState<'incoming' | 'active' | 'waiting-analysis' | 'pending'>('incoming')
   const [refreshKey, setRefreshKey] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -83,10 +107,11 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
   // Calculate stats
   const stats: Stats = useMemo(() => ({
     total: tickets.length,
-    new: tickets.filter(t => t.status === 'NEW').length,
+    new: tickets.filter(t => t.status === 'UNASSIGNED').length,
     assigned: tickets.filter(t => t.status === 'ASSIGNED').length,
+    waitingAnalysis: tickets.filter(t => t.status === 'NEEDS_ANALYSIS').length,
     inProgress: tickets.filter(t => t.status === 'ON_PROGRESS').length,
-    waitingConfirmation: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length
+    waitingConfirmation: tickets.filter(t => t.status === 'WAITING_CLIENT_CONFIRMATION').length
   }), [tickets])
 
   // Generate chart data - technician performance
@@ -101,13 +126,15 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
 
   // Get technician queue for reminder panel
   const technicianQueue = useMemo(() => {
-    const assignedTickets = tickets.filter(t => t.status === 'ASSIGNED' || t.status === 'ON_PROGRESS')
-    return assignedTickets.slice(0, 5).map((ticket, i) => ({
+    const activeTickets = tickets.filter(t =>
+      t.status === 'ASSIGNED' || t.status === 'ON_PROGRESS' || t.status === 'NEEDS_ANALYSIS'
+    )
+    return activeTickets.slice(0, 5).map((ticket, i) => ({
       id: ticket.id,
       time: `${9 + i}:00`,
       label: ticket.ticket_number,
       description: `${ticket.problem} - ${ticket.unit_code}`,
-      priority: 'medium' as const,
+      priority: ticket.priority === 'URGENT' ? 'high' as const : 'medium' as const,
       action: {
         label: 'Detail',
         onClick: () => window.location.href = `/tickets/${ticket.id}`
@@ -126,9 +153,10 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
         t.unit_code.toLowerCase().includes(query)
       )
     }
-    if (activeTab === 'incoming') return filtered.filter(t => t.status === 'NEW')
-    if (activeTab === 'active') return filtered.filter(t => ['ASSIGNED', 'ON_PROGRESS'].includes(t.status))
-    if (activeTab === 'pending') return filtered.filter(t => t.status === 'WAITING_CONFIRMATION')
+    if (activeTab === 'incoming') return filtered.filter(t => t.status === 'UNASSIGNED')
+    if (activeTab === 'active') return filtered.filter(t => ['ASSIGNED', 'ON_PROGRESS', 'INVESTIGATION'].includes(t.status))
+    if (activeTab === 'waiting-analysis') return filtered.filter(t => t.status === 'NEEDS_ANALYSIS')
+    if (activeTab === 'pending') return filtered.filter(t => t.status === 'WAITING_CLIENT_CONFIRMATION')
     return filtered
   }, [tickets, activeTab, searchQuery])
 
@@ -136,7 +164,8 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
   const statusDistribution = [
     { label: 'Baru', value: stats.new, color: '#3B82F6' },
     { label: 'Ditugaskan', value: stats.assigned, color: '#8B5CF6' },
-    { label: 'Diproses', value: stats.inProgress, color: '#F59E0B' },
+    { label: 'Menunggu Analisis', value: stats.waitingAnalysis, color: '#F59E0B' },
+    { label: 'Diproses', value: stats.inProgress, color: '#EF4444' },
     { label: 'Pending', value: stats.waitingConfirmation, color: '#EC4899' },
   ]
 
@@ -156,29 +185,53 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
       icon: <Users className="w-5 h-5 text-indigo-600" />
     },
     {
-      title: 'Sedang Diproses',
-      value: stats.inProgress,
-      subtitle: 'Dalam pengerjaan',
-      icon: <Wrench className="w-5 h-5 text-amber-600" />
+      title: 'Menunggu Analisis',
+      value: stats.waitingAnalysis,
+      subtitle: 'Review inspeksi awal',
+      icon: <FileSearch className="w-5 h-5 text-amber-600" />
     },
     {
-      title: 'Auto-Finish Pending',
-      value: stats.waitingConfirmation,
-      subtitle: 'Menunggu konfirmasi',
-      icon: <RefreshCw className="w-5 h-5 text-purple-600" />
+      title: 'Sedang Diproses',
+      value: stats.inProgress,
+      subtitle: 'Pengerjaan aktif',
+      icon: <Wrench className="w-5 h-5 text-red-600" />
     }
   ]
 
   // Get status style
   function getStatusStyle(status: string) {
     const styles: Record<string, { bg: string; text: string; label: string }> = {
-      NEW: { bg: 'bg-blue-50', text: 'text-blue-700', label: 'BARU' },
+      UNASSIGNED: { bg: 'bg-blue-50', text: 'text-blue-700', label: 'BARU / UNASSIGNED' },
       ASSIGNED: { bg: 'bg-indigo-50', text: 'text-indigo-700', label: 'DITUGASKAN' },
-      ON_PROGRESS: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'DIPROSES' },
-      WAITING_CONFIRMATION: { bg: 'bg-purple-50', text: 'text-purple-700', label: 'MENUNGGU KONFIRMASI' },
-      COMPLETED: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'SELESAI' },
+      INVESTIGATION: { bg: 'bg-cyan-50', text: 'text-cyan-700', label: 'INVESTIGASI' },
+      NEEDS_ANALYSIS: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'ANALISIS KERUSAKAN' },
+      RESCHEDULED: { bg: 'bg-purple-50', text: 'text-purple-700', label: 'RESCHEDULE' },
+      ON_PROGRESS: { bg: 'bg-red-50', text: 'text-red-700', label: 'DIPROSES' },
+      REVIEW_FINISH: { bg: 'bg-teal-50', text: 'text-teal-700', label: 'REVIEW FINISH' },
+      WAITING_CLIENT_CONFIRMATION: { bg: 'bg-rose-50', text: 'text-rose-700', label: 'MENUNGGU TANGGAPAN CLIENT' },
+      FINISHED: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'SELESAI' },
+      CANCELLED: { bg: 'bg-slate-100', text: 'text-slate-600', label: 'DIBATALKAN' },
     }
     return styles[status] || { bg: 'bg-slate-50', text: 'text-slate-700', label: status }
+  }
+
+  // Get priority style
+  function getPriorityStyle(priority: string) {
+    return priority === 'URGENT'
+      ? { bg: 'bg-red-100', text: 'text-red-700', label: 'URGENT' }
+      : { bg: 'bg-slate-100', text: 'text-slate-600', label: 'NORMAL' }
+  }
+
+  // Open reschedule modal
+  function openRescheduleModal(ticket: Ticket) {
+    setSelectedTicket(ticket)
+    setShowRescheduleModal(true)
+  }
+
+  // Open inspection review modal
+  function openInspectionModal(ticket: Ticket) {
+    setSelectedTicket(ticket)
+    setShowInspectionModal(true)
   }
 
   // Open assign modal
@@ -252,10 +305,10 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
         className="mt-6 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
       >
         {/* Tabs */}
-        <div className="flex border-b border-slate-100/80">
+        <div className="flex border-b border-slate-100/80 overflow-x-auto">
           <button
             onClick={() => setActiveTab('incoming')}
-            className={`flex-1 px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+            className={`px-4 md:px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${
               activeTab === 'incoming'
                 ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/30'
                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
@@ -266,7 +319,7 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
           </button>
           <button
             onClick={() => setActiveTab('active')}
-            className={`flex-1 px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+            className={`px-4 md:px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${
               activeTab === 'active'
                 ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/30'
                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
@@ -276,15 +329,26 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
             Active ({stats.assigned + stats.inProgress})
           </button>
           <button
+            onClick={() => setActiveTab('waiting-analysis')}
+            className={`px-4 md:px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${
+              activeTab === 'waiting-analysis'
+                ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50/30'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <FileSearch className="w-4 h-4" />
+            Review Inspeksi ({stats.waitingAnalysis})
+          </button>
+          <button
             onClick={() => setActiveTab('pending')}
-            className={`flex-1 px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
+            className={`px-4 md:px-6 py-4 text-sm font-semibold transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${
               activeTab === 'pending'
                 ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/30'
                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
             }`}
           >
             <RefreshCw className="w-4 h-4" />
-            Pending Review ({stats.waitingConfirmation})
+            Pending ({stats.waitingConfirmation})
           </button>
         </div>
 
@@ -302,6 +366,7 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
             <div className="space-y-4">
               {filteredTickets.map((ticket, index) => {
                 const statusStyle = getStatusStyle(ticket.status)
+                const priorityStyle = getPriorityStyle(ticket.priority)
 
                 return (
                   <motion.div
@@ -311,29 +376,55 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
                     transition={{ delay: index * 0.03 }}
                     className="bg-slate-50/50 rounded-xl border border-slate-100 p-5 hover:border-slate-200 transition-colors"
                   >
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                    <div className="flex flex-col lg:flex-row lg:items-start gap-4">
                       {/* Ticket Info */}
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <span className="font-bold text-slate-800">{ticket.ticket_number}</span>
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusStyle.bg} ${statusStyle.text}`}>
                             {statusStyle.label}
                           </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${priorityStyle.bg} ${priorityStyle.text}`}>
+                            {priorityStyle.label}
+                          </span>
                         </div>
                         <p className="text-slate-700 font-medium mb-1">{ticket.problem}</p>
-                        <div className="flex items-center gap-4 text-sm text-slate-500">
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
                           <span>{ticket.unit_code}</span>
                           <span>&bull;</span>
                           <span>{ticket.resident_name}</span>
                           <span>&bull;</span>
                           <span>{new Date(ticket.created_at).toLocaleDateString('id-ID')}</span>
                         </div>
+                        {ticket.scheduled_at && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+                            <Calendar className="w-3.5 h-3.5" />
+                            <span>Jadwal: {new Date(ticket.scheduled_at).toLocaleString('id-ID', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Actions & Timer */}
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Reschedule Button for all non-completed tickets */}
+                        {!['FINISHED', 'CANCELLED'].includes(ticket.status) && (
+                          <button
+                            onClick={() => openRescheduleModal(ticket)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 bg-white border border-slate-200 rounded-xl hover:border-blue-200 transition-colors"
+                          >
+                            <Calendar className="w-4 h-4" />
+                            <span className="hidden sm:inline">Jadwal</span>
+                          </button>
+                        )}
+
                         {/* Auto Finish Timer for Pending */}
-                        {ticket.status === 'WAITING_CONFIRMATION' && ticket.submitted_at && (
+                        {ticket.status === 'WAITING_CLIENT_CONFIRMATION' && ticket.submitted_at && (
                           <div className="hidden md:block">
                             <AutoFinishTimer
                               ticketId={ticket.id}
@@ -344,13 +435,24 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
                         )}
 
                         {/* Assign Button */}
-                        {ticket.status === 'NEW' && (
+                        {ticket.status === 'UNASSIGNED' && (
                           <button
                             onClick={() => openAssignModal(ticket)}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
                           >
                             <Wrench className="w-4 h-4" />
                             Tugaskan
+                          </button>
+                        )}
+
+                        {/* Review Inspection Button */}
+                        {ticket.status === 'NEEDS_ANALYSIS' && (
+                          <button
+                            onClick={() => openInspectionModal(ticket)}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                          >
+                            <FileSearch className="w-4 h-4" />
+                            Review Inspeksi
                           </button>
                         )}
 
@@ -365,8 +467,19 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
                       </div>
                     </div>
 
+                    {/* Investigation Report Preview for NEEDS_ANALYSIS */}
+                    {ticket.status === 'NEEDS_ANALYSIS' && ticket.investigation_report && (
+                      <div className="mt-4 p-4 bg-amber-50/50 rounded-xl border border-amber-100">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Camera className="w-4 h-4 text-amber-600" />
+                          <span className="text-sm font-semibold text-amber-700">Laporan Investigasi</span>
+                        </div>
+                        <p className="text-sm text-slate-600">{ticket.investigation_report}</p>
+                      </div>
+                    )}
+
                     {/* Auto Finish Timer for Pending (Mobile) */}
-                    {ticket.status === 'WAITING_CONFIRMATION' && ticket.submitted_at && (
+                    {ticket.status === 'WAITING_CLIENT_CONFIRMATION' && ticket.submitted_at && (
                       <div className="mt-4 md:hidden">
                         <AutoFinishTimer
                           ticketId={ticket.id}
@@ -393,6 +506,35 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
           }}
           ticketId={selectedTicket.id}
           ticketNumber={selectedTicket.ticket_number}
+          onSuccess={handleRefresh}
+        />
+      )}
+
+      {/* Reschedule Modal */}
+      {selectedTicket && (
+        <RescheduleModal
+          isOpen={showRescheduleModal}
+          onClose={() => {
+            setShowRescheduleModal(false)
+            setSelectedTicket(null)
+          }}
+          ticketId={selectedTicket.id}
+          ticketNumber={selectedTicket.ticket_number}
+          currentScheduledAt={selectedTicket.scheduled_at}
+          currentPriority={selectedTicket.priority}
+          onSuccess={handleRefresh}
+        />
+      )}
+
+      {/* Inspection Review Modal */}
+      {selectedTicket && (
+        <InspectionReviewModal
+          isOpen={showInspectionModal}
+          onClose={() => {
+            setShowInspectionModal(false)
+            setSelectedTicket(null)
+          }}
+          ticket={selectedTicket}
           onSuccess={handleRefresh}
         />
       )}

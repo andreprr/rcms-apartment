@@ -51,7 +51,27 @@ export async function GET() {
         created_at,
         unit_code,
         resident_name,
-        current_assignee_id
+        phone_number,
+        current_assignee_id,
+        assigned_technician_ids,
+        priority,
+        scheduled_at,
+        initial_inspection_notes,
+        inspection_completed_at,
+        inspection_approved_at,
+        investigation_report,
+        investigation_photo_paths,
+        required_materials,
+        investigation_completed_at,
+        reschedule_reason,
+        reschedule_photo_paths,
+        before_photo_paths,
+        process_photo_paths,
+        after_photo_paths,
+        finish_notes,
+        rework_reason,
+        rework_count,
+        is_rework
       `)
       .in('id', ticketIds)
       .order('created_at', { ascending: false })

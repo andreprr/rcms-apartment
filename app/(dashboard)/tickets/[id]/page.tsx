@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { ArrowLeft, Building2, Tag, Clock, FileText, Activity, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Building2, Tag, Clock, FileText, Activity, AlertTriangle, Printer } from 'lucide-react'
 import UpdateStatusForm from '@/components/forms/UpdateStatusForm'
 
 // PERUBAHAN NEXT.JS 15: params sekarang berbentuk Promise
@@ -54,14 +54,36 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const getStatusColor = (status: string) => {
     switch(status) {
       case 'NEW': return 'bg-blue-100 text-blue-700'
-      case 'ON_PROGRESS': return 'bg-amber-100 text-amber-700'
+      case 'ASSIGNED': return 'bg-indigo-100 text-indigo-700'
+      case 'WAITING_ANALYSIS': return 'bg-amber-100 text-amber-700'
+      case 'ON_PROGRESS': return 'bg-orange-100 text-orange-700'
+      case 'WAITING_CONFIRMATION': return 'bg-purple-100 text-purple-700'
       case 'COMPLETED': return 'bg-emerald-100 text-emerald-700'
+      case 'REWORK': return 'bg-rose-100 text-rose-700'
+      case 'ON_HOLD': return 'bg-slate-200 text-slate-600'
+      case 'CANCELLED': return 'bg-red-100 text-red-700'
       default: return 'bg-slate-100 text-slate-700'
     }
   }
 
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      NEW: 'BARU',
+      ASSIGNED: 'DITUGASKAN',
+      WAITING_ANALYSIS: 'MENUNGGU ANALISIS',
+      ON_PROGRESS: 'DIPROSES',
+      WAITING_CONFIRMATION: 'MENUNGGU KONFIRMASI',
+      COMPLETED: 'SELESAI',
+      REWORK: 'REVISI',
+      ON_HOLD: 'ON HOLD',
+      CANCELLED: 'DIBATALKAN',
+    }
+    return labels[status] || status
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header with Back & Print Button */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <Link href="/tickets" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors mb-2">
@@ -70,11 +92,27 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{ticket.ticket_number}</h1>
             <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(ticket.status)}`}>
-              {ticket.status.replace('_', ' ')}
+              {getStatusLabel(ticket.status)}
             </span>
+            {ticket.priority === 'URGENT' && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                URGENT
+              </span>
+            )}
           </div>
           <p className="text-slate-500 text-sm mt-1">Dibuat pada {new Date(ticket.created_at).toLocaleString('id-ID')}</p>
         </div>
+
+        {/* Print Button */}
+        <a
+          href={`/tickets/${ticket.id}/print`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white text-sm font-semibold rounded-xl transition-all shadow-md hover:shadow-lg"
+        >
+          <Printer className="w-4 h-4" />
+          Cetak Tiket
+        </a>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

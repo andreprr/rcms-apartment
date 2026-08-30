@@ -16,12 +16,18 @@ import {
   X,
   Play,
   Star,
-  Calendar
+  Calendar,
+  Search,
+  Eye,
+  MapPin,
+  FileSearch,
+  Check
 } from 'lucide-react'
 import Link from 'next/link'
 import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
 import { ReminderCard, ProgressRing } from '@/components/dashboard/RightWidgets'
 import { updateTicketStage, submitCompletion } from '@/actions/engineering-work'
+import { completeSiteInspection } from '@/actions/tickets'
 import type { UserRole } from '@/types/database'
 
 interface Ticket {
@@ -34,7 +40,13 @@ interface Ticket {
   created_at: string
   unit_code: string
   resident_name: string
+  phone_number: string
   current_assignee_id: string | null
+  priority: 'NORMAL' | 'URGENT'
+  scheduled_at: string | null
+  initial_inspection_notes: string | null
+  inspection_completed_at: string | null
+  inspection_approved_at: string | null
 }
 
 interface StageOption {
@@ -54,6 +66,7 @@ const ATTACHMENT_TYPES = [
   { value: 'BEFORE', label: 'Sebelum Kerja', color: 'text-rose-600' },
   { value: 'PROGRESS', label: 'Proses Kerja', color: 'text-amber-600' },
   { value: 'AFTER', label: 'Setelah Selesai', color: 'text-emerald-600' },
+  { value: 'INSPECTION_BEFORE', label: 'Inspeksi', color: 'text-blue-600' },
 ]
 
 interface EngineeringDashboardClientProps {
@@ -98,6 +111,7 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
     total: tickets.length,
     inProgress: tickets.filter(t => t.status === 'ON_PROGRESS').length,
     waiting: tickets.filter(t => t.status === 'ASSIGNED').length,
+    waitingAnalysis: tickets.filter(t => t.status === 'WAITING_ANALYSIS').length,
     pendingConfirm: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length
   }), [tickets])
 
@@ -110,25 +124,25 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
     }))
   }, [])
 
-  // Get today's tasks for reminder
+  // Get today's tasks for reminder - Phase 1 first, then Phase 2
   const todayTasks = useMemo(() => {
-    return tickets
-      .filter(t => t.status === 'ASSIGNED' || t.status === 'ON_PROGRESS')
-      .slice(0, 4)
-      .map((ticket, i) => ({
-        id: ticket.id,
-        time: `${8 + i}:00`,
-        label: ticket.ticket_number,
-        description: `${ticket.problem} - ${ticket.unit_code}`,
-        priority: ticket.status === 'ASSIGNED' ? 'high' as const : 'medium' as const,
-        action: {
-          label: ticket.status === 'ASSIGNED' ? 'Mulai' : 'Update',
-          onClick: () => {
-            setSelectedTicket(ticket)
-            setShowUpdateModal(true)
-          }
+    const assignedTickets = tickets.filter(t => t.status === 'ASSIGNED')
+    const waitingAnalysisTickets = tickets.filter(t => t.status === 'WAITING_ANALYSIS' && !t.inspection_approved_at)
+
+    return [...assignedTickets, ...waitingAnalysisTickets].slice(0, 4).map((ticket, i) => ({
+      id: ticket.id,
+      time: `${8 + i}:00`,
+      label: ticket.ticket_number,
+      description: `${ticket.problem} - ${ticket.unit_code}`,
+      priority: ticket.priority === 'URGENT' ? 'high' as const : 'medium' as const,
+      action: {
+        label: ticket.status === 'ASSIGNED' ? 'Inspeksi' : 'Update',
+        onClick: () => {
+          setSelectedTicket(ticket)
+          setShowUpdateModal(true)
         }
-      }))
+      }
+    }))
   }, [tickets])
 
   // Calculate completion rate
@@ -147,22 +161,22 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
       trend: { value: 5, isPositive: true }
     },
     {
+      title: 'Inspeksi Awal',
+      value: stats.waiting,
+      subtitle: 'Belum dicek',
+      icon: <MapPin className="w-5 h-5 text-blue-600" />
+    },
+    {
+      title: 'Menunggu Analisis',
+      value: stats.waitingAnalysis,
+      subtitle: 'Review Admin',
+      icon: <FileSearch className="w-5 h-5 text-amber-600" />
+    },
+    {
       title: 'Sedang Dikerjakan',
       value: stats.inProgress,
       subtitle: 'Aktif saat ini',
-      icon: <Wrench className="w-5 h-5 text-amber-600" />
-    },
-    {
-      title: 'Menunggu',
-      value: stats.waiting,
-      subtitle: 'Belum dimulai',
-      icon: <Clock className="w-5 h-5 text-indigo-600" />
-    },
-    {
-      title: 'Rating',
-      value: '4.8',
-      subtitle: 'dari warga',
-      icon: <Star className="w-5 h-5 text-yellow-500" />
+      icon: <Wrench className="w-5 h-5 text-orange-600" />
     }
   ]
 
@@ -269,26 +283,65 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
                 transition={{ delay: index * 0.03 }}
                 className="p-6 hover:bg-slate-50/50 transition-colors"
               >
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-start gap-4">
                   {/* Info */}
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className="font-bold text-slate-800">{ticket.ticket_number}</span>
                       <StatusBadge status={ticket.status} />
-                      {ticket.current_stage && (
+                      {ticket.priority === 'URGENT' && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
+                          URGENT
+                        </span>
+                      )}
+                      {ticket.current_stage && ticket.status !== 'ASSIGNED' && (
                         <StageBadge stage={ticket.current_stage} />
                       )}
                     </div>
                     <p className="text-slate-700 font-medium mb-1">{ticket.problem}</p>
-                    <div className="flex items-center gap-4 text-sm text-slate-500">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
                       <span>{ticket.unit_code}</span>
                       <span>&bull;</span>
                       <span>{ticket.resident_name}</span>
+                      {ticket.scheduled_at && (
+                        <>
+                          <span>&bull;</span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            {new Date(ticket.scheduled_at).toLocaleDateString('id-ID', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </>
+                      )}
                     </div>
+
+                    {/* Phase indicator */}
+                    {ticket.status === 'WAITING_ANALYSIS' && (
+                      <div className="mt-3 flex items-center gap-2 text-amber-600 text-sm">
+                        <Clock className="w-4 h-4" />
+                        <span>Menunggu review & persetujuan Engineering Admin</span>
+                      </div>
+                    )}
+
+                    {/* Inspection notes preview */}
+                    {ticket.inspection_completed_at && ticket.initial_inspection_notes && (
+                      <div className="mt-3 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                        <p className="text-xs text-blue-700 font-medium mb-1 flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" />
+                          Inspeksi Selesai
+                        </p>
+                        <p className="text-xs text-slate-600 line-clamp-2">{ticket.initial_inspection_notes}</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Phase 1: Start Inspection (ASSIGNED) */}
                     {ticket.status === 'ASSIGNED' && (
                       <button
                         onClick={() => {
@@ -297,12 +350,30 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
                         }}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
                       >
-                        <Play className="w-4 h-4" />
-                        Mulai Kerjakan
+                        <MapPin className="w-4 h-4" />
+                        Pengecekan Lokasi
                       </button>
                     )}
 
-                    {ticket.status === 'ON_PROGRESS' && (
+                    {/* Phase 1 Complete: View Waiting Status */}
+                    {ticket.status === 'WAITING_ANALYSIS' && !ticket.inspection_approved_at && (
+                      <div className="flex items-center gap-3">
+                        <div className="px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium rounded-xl flex items-center gap-2">
+                          <FileSearch className="w-4 h-4" />
+                          Menunggu Persetujuan
+                        </div>
+                        <Link
+                          href={`/tickets/${ticket.id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 bg-white border border-slate-200 rounded-xl hover:border-blue-200 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Detail
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Phase 2: Main Repair (ON_PROGRESS - only after admin approval) */}
+                    {ticket.status === 'ON_PROGRESS' && ticket.inspection_approved_at && (
                       <>
                         <button
                           onClick={() => {
@@ -362,16 +433,24 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
 // Status Badge Component
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
+    NEW: 'bg-blue-50 text-blue-700',
     ASSIGNED: 'bg-indigo-50 text-indigo-700',
-    ON_PROGRESS: 'bg-amber-50 text-amber-700',
+    WAITING_ANALYSIS: 'bg-amber-50 text-amber-700',
+    ON_PROGRESS: 'bg-orange-50 text-orange-700',
     WAITING_CONFIRMATION: 'bg-purple-50 text-purple-700',
     COMPLETED: 'bg-emerald-50 text-emerald-700',
+    REWORK: 'bg-red-50 text-red-700',
+    ON_HOLD: 'bg-slate-100 text-slate-600',
   }
   const labels: Record<string, string> = {
+    NEW: 'BARU',
     ASSIGNED: 'DITUGASKAN',
+    WAITING_ANALYSIS: 'MENUNGGU ANALISIS',
     ON_PROGRESS: 'DIPROSES',
     WAITING_CONFIRMATION: 'MENUNGGU KONFIRMASI',
     COMPLETED: 'SELESAI',
+    REWORK: 'REWORK',
+    ON_HOLD: 'ON HOLD',
   }
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${styles[status] || 'bg-slate-100 text-slate-600'}`}>
@@ -393,15 +472,50 @@ function StageBadge({ stage }: { stage: string }) {
 
 // Update Progress Modal
 function UpdateProgressModal({ ticket, onClose, onSuccess }: { ticket: Ticket, onClose: () => void, onSuccess: () => void }) {
+  const [mode, setMode] = useState<'inspection' | 'repair'>(
+    ticket.status === 'ASSIGNED' ? 'inspection' : 'repair'
+  )
   const [stage, setStage] = useState(ticket.current_stage || 'INSPECTION')
   const [note, setNote] = useState('')
-  const [attachmentType, setAttachmentType] = useState('PROGRESS')
+  const [attachmentType, setAttachmentType] = useState('INSPECTION_BEFORE')
   const [file, setFile] = useState<File | null>(null)
   const [action, setAction] = useState<'update' | 'submit'>('update')
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async () => {
+  // Phase 1: Complete Site Inspection
+  const handleCompleteInspection = async () => {
+    if (!note.trim()) {
+      setError('Catatan inspeksi wajib diisi')
+      return
+    }
+
+    setIsPending(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('ticket_id', ticket.id)
+      formData.append('inspection_notes', note)
+
+      const result = await completeSiteInspection(formData)
+
+      if (result?.error) {
+        setError(result.error)
+        setIsPending(false)
+        return
+      }
+
+      onSuccess()
+      onClose()
+    } catch (err: any) {
+      setError(err.message || 'Terjadi kesalahan')
+    }
+    setIsPending(false)
+  }
+
+  // Phase 2: Normal work update
+  const handleRepairProgress = async () => {
     setIsPending(true)
     setError(null)
 
@@ -434,6 +548,8 @@ function UpdateProgressModal({ ticket, onClose, onSuccess }: { ticket: Ticket, o
     setIsPending(false)
   }
 
+  const isPhase1 = ticket.status === 'ASSIGNED'
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -448,15 +564,33 @@ function UpdateProgressModal({ ticket, onClose, onSuccess }: { ticket: Ticket, o
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         className="relative bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/60 w-full max-w-lg max-h-[85vh] overflow-y-auto"
       >
-        <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-slate-50/50 to-white/50 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800">Update Progress</h3>
-            <p className="text-sm text-slate-500">#{ticket.ticket_number}</p>
+        {/* Phase 1 Header: Site Inspection */}
+        {isPhase1 ? (
+          <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-blue-50/50 to-white/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                <MapPin className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Phase 1: Pengecekan Lokasi</h3>
+                <p className="text-sm text-slate-500">#{ticket.ticket_number}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        ) : (
+          <div className="px-6 py-5 border-b border-slate-100/80 bg-gradient-to-r from-slate-50/50 to-white/50 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Update Progress</h3>
+              <p className="text-sm text-slate-500">#{ticket.ticket_number}</p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <div className="p-6 space-y-5">
           {error && (
@@ -466,97 +600,185 @@ function UpdateProgressModal({ ticket, onClose, onSuccess }: { ticket: Ticket, o
             </div>
           )}
 
-          {/* Stage Selector */}
-          <div>
-            <label className="text-sm font-semibold text-slate-700 mb-3 block">Work Stage</label>
-            <div className="grid grid-cols-2 gap-2">
-              {STAGES.map((s) => (
-                <button
-                  key={s.value}
-                  onClick={() => setStage(s.value)}
-                  className={`px-4 py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
-                    stage === s.value
-                      ? `${s.color} text-white border-transparent`
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
+          {/* Ticket Info Summary for Phase 1 */}
+          {isPhase1 && (
+            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+              <h4 className="font-semibold text-slate-800 mb-2">{ticket.problem}</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">
+                    {ticket.unit_code}
+                  </span>
+                </div>
+                <div>{ticket.resident_name}</div>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Note */}
-          <div>
-            <label className="text-sm font-semibold text-slate-700 mb-2 block">Catatan Harian</label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={3}
-              placeholder="Contoh: Pipa berhasil diperbaiki, menunggu penggantian valve..."
-              className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600/20 focus:border-blue-400 transition-all outline-none resize-none text-sm"
-            />
-          </div>
+          {/* Phase 1: Inspection Notes */}
+          {isPhase1 ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-amber-600 bg-amber-50/50 px-4 py-3 rounded-xl border border-amber-100">
+                <FileSearch className="w-5 h-5" />
+                <p className="text-sm font-medium">
+                  Lakukan pengecekan lokasi, catat kondisi awal, dan isi hasil diagnosis di bawah ini.
+                </p>
+              </div>
 
-          {/* Photo Upload */}
-          <div>
-            <label className="text-sm font-semibold text-slate-700 mb-2 block flex items-center gap-2">
-              <Camera className="w-4 h-4" />
-              Upload Foto
-            </label>
-            <div className="flex gap-2 mb-2">
-              {ATTACHMENT_TYPES.map((type) => (
-                <button
-                  key={type.value}
-                  onClick={() => setAttachmentType(type.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    attachmentType === type.value
-                      ? `${type.color} bg-current/10`
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  {type.label}
-                </button>
-              ))}
+              <div>
+                <label className="text-sm font-semibold text-slate-700 mb-2 block flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Catatan Inspeksi & Diagnosis Awal <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={5}
+                  placeholder="Contoh: Pipa wastafel bocor di bagian sambungan. Perlu penggantian elbow pipe. Kondisi keran sudah aus dan perlu diganti juga..."
+                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600/20 focus:border-blue-400 transition-all outline-none resize-none text-sm"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Catatan ini akan direview oleh Engineering Admin sebelum pekerjaan dimulai.
+                </p>
+              </div>
+
+              {/* Photo Upload for Inspection */}
+              <div>
+                <label className="text-sm font-semibold text-slate-700 mb-2 block flex items-center gap-2">
+                  <Camera className="w-4 h-4" />
+                  Foto Kondisi Awal (Opsional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
             </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-          </div>
+          ) : (
+            <>
+              {/* Phase 2: Stage Selector */}
+              <div>
+                <label className="text-sm font-semibold text-slate-700 mb-3 block">Work Stage</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {STAGES.map((s) => (
+                    <button
+                      key={s.value}
+                      onClick={() => setStage(s.value)}
+                      className={`px-4 py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                        stage === s.value
+                          ? `${s.color} text-white border-transparent`
+                          : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Phase 2: Note */}
+              <div>
+                <label className="text-sm font-semibold text-slate-700 mb-2 block">Catatan Harian</label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="Contoh: Pipa berhasil diperbaiki, menunggu penggantian valve..."
+                  className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600/20 focus:border-blue-400 transition-all outline-none resize-none text-sm"
+                />
+              </div>
+
+              {/* Phase 2: Photo Upload */}
+              <div>
+                <label className="text-sm font-semibold text-slate-700 mb-2 block flex items-center gap-2">
+                  <Camera className="w-4 h-4" />
+                  Upload Foto
+                </label>
+                <div className="flex gap-2 mb-2">
+                  {ATTACHMENT_TYPES.map((type) => (
+                    <button
+                      key={type.value}
+                      onClick={() => setAttachmentType(type.value)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        attachmentType === type.value
+                          ? `${type.color} bg-current/10`
+                          : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="px-6 py-5 border-t border-slate-100/80 bg-slate-50/30 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={isPending}
-            className="flex-1 px-4 py-3 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"
-          >
-            Batal
-          </button>
-          <button
-            onClick={() => { setAction('update'); handleSubmit() }}
-            disabled={isPending}
-            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
-          >
-            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            Simpan Progress
-          </button>
-        </div>
-
-        {ticket.status === 'ON_PROGRESS' && (
-          <div className="px-6 py-4 border-t border-slate-100/80">
+        {/* Phase 1 Footer: Complete Inspection */}
+        {isPhase1 ? (
+          <div className="px-6 py-5 border-t border-slate-100/80 bg-slate-50/30">
             <button
-              onClick={() => { setAction('submit'); handleSubmit() }}
+              onClick={handleCompleteInspection}
               disabled={isPending}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              Ajukan Selesai & Konfirmasi Resident
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Selesai Pengecekan & Kirim untuk Review
+                </>
+              )}
             </button>
+            <p className="text-xs text-slate-400 text-center mt-2">
+              Setelah submit, Engineering Admin akan review hasil inspeksi Anda.
+            </p>
           </div>
+        ) : (
+          <>
+            <div className="px-6 py-5 border-t border-slate-100/80 bg-slate-50/30 flex gap-3">
+              <button
+                onClick={onClose}
+                disabled={isPending}
+                className="flex-1 px-4 py-3 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => { setAction('update'); handleRepairProgress() }}
+                disabled={isPending}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+              >
+                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                Simpan Progress
+              </button>
+            </div>
+
+            {ticket.status === 'ON_PROGRESS' && (
+              <div className="px-6 py-4 border-t border-slate-100/80">
+                <button
+                  onClick={() => { setAction('submit'); handleRepairProgress() }}
+                  disabled={isPending}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Ajukan Selesai & Konfirmasi Resident
+                </button>
+              </div>
+            )}
+          </>
         )}
       </motion.div>
     </motion.div>

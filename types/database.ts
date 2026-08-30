@@ -6,7 +6,10 @@
 export type UserRole = 'ADMIN' | 'RR' | 'ENGINEERING_ADMIN' | 'ENGINEERING' | 'PENGURUS'
 
 // Ticket Status
-export type TicketStatus = 'NEW' | 'ASSIGNED' | 'ON_PROGRESS' | 'WAITING_CONFIRMATION' | 'COMPLETED' | 'REWORK' | 'ON_HOLD' | 'CANCELLED'
+export type TicketStatus = 'UNASSIGNED' | 'ASSIGNED' | 'INVESTIGATION' | 'RESCHEDULED' | 'NEEDS_ANALYSIS' | 'ON_PROGRESS' | 'REVIEW_FINISH' | 'WAITING_CLIENT_CONFIRMATION' | 'REWORK_REQ' | 'FINISHED' | 'CANCELLED'
+
+// Ticket Priority
+export type TicketPriority = 'NORMAL' | 'URGENT'
 
 // Ticket Stage (Engineering Work Stage)
 export type TicketStage = 'INSPECTION' | 'DIAGNOSIS' | 'REPAIR' | 'FINISHING'
@@ -14,8 +17,8 @@ export type TicketStage = 'INSPECTION' | 'DIAGNOSIS' | 'REPAIR' | 'FINISHING'
 // Daily Log Action Type
 export type DailyLogAction = 'EXTEND' | 'SUBMIT_FINISH'
 
-// Photo Type
-export type PhotoType = 'BEFORE' | 'PROGRESS' | 'AFTER' | 'OTHER'
+// Photo Type (includes inspection photos)
+export type PhotoType = 'BEFORE' | 'AFTER' | 'PROGRESS' | 'INSPECTION_BEFORE' | 'OTHER'
 
 // ============================================================================
 // USER TYPES
@@ -59,9 +62,19 @@ export interface Ticket {
   problem: string
   description?: string
 
+  // Priority & Scheduling
+  priority: TicketPriority
+  scheduled_at?: string
+
   // Status & Stage
   status: TicketStatus
   current_stage?: TicketStage
+
+  // Initial Inspection (Phase 1)
+  initial_inspection_notes?: string
+  inspection_completed_at?: string
+  inspection_approved_at?: string
+  inspection_approved_by?: string
 
   // Relations
   created_by: string
@@ -95,6 +108,8 @@ export interface TicketSummary {
   problem: string
   status: TicketStatus
   current_stage?: TicketStage
+  priority: TicketPriority
+  scheduled_at?: string
   created_at: string
 }
 
@@ -128,6 +143,7 @@ export interface TicketAttachment {
   file_type: string
   file_size?: number
   photo_type: PhotoType
+  description?: string
   created_at: string
 }
 
@@ -198,6 +214,7 @@ export interface StatsResponse {
   total: number
   new: number
   assigned: number
+  waitingAnalysis: number
   inProgress: number
   waiting: number
   completed: number
@@ -212,6 +229,8 @@ export interface StatsResponse {
 export interface DashboardStats {
   total: number
   new: number
+  assigned: number
+  waitingAnalysis: number
   onProgress: number
   waitingConfirmation: number
   completed: number

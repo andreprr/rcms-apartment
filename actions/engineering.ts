@@ -33,6 +33,10 @@ export async function assignTechnicians(formData: FormData) {
     return { error: 'Pilih minimal 1 teknisi.' }
   }
 
+  if (technicianIds.length > 5) {
+    return { error: 'Maksimal 5 teknisi.' }
+  }
+
   // 3. Hapus assignment lama (jika ada)
   await supabase
     .from('ticket_assignments')
@@ -56,12 +60,13 @@ export async function assignTechnicians(formData: FormData) {
     return { error: 'Gagal menugaskan teknisi.' }
   }
 
-  // 5. Update status tiket menjadi ASSIGNED
+  // 5. Update status tiket menjadi ASSIGNED & simpan array teknisi multi-assign
   const { error: updateError } = await supabase
     .from('tickets')
     .update({
       status: 'ASSIGNED',
-      started_at: new Date().toISOString()
+      assigned_technician_ids: technicianIds,
+      current_assignee_id: technicianIds[0],
     })
     .eq('id', ticketId)
 

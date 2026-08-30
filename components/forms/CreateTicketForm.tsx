@@ -3,14 +3,16 @@
 import { createTicket } from '@/actions/tickets'
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, AlertCircle, Building2, Heading, AlignLeft, Printer, CheckCircle2, User, Phone } from 'lucide-react'
+import { Loader2, AlertCircle, Building2, Heading, AlignLeft, Printer, CheckCircle2, User, Phone, Calendar, Clock, AlertTriangle, Check } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function CreateTicketForm() {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [createdTicket, setCreatedTicket] = useState<{ id: string; ticket_number: string } | null>(null)
+  const router = useRouter()
 
   async function handleSubmit(formData: FormData) {
     setError(null)
@@ -23,6 +25,14 @@ export default function CreateTicketForm() {
         setShowSuccessModal(true)
       }
     })
+  }
+
+  function handlePrintTicket() {
+    if (createdTicket) {
+      // Close modal first, then navigate
+      setShowSuccessModal(false)
+      router.push(`/tickets/${createdTicket.id}/print`)
+    }
   }
 
   return (
@@ -128,6 +138,25 @@ export default function CreateTicketForm() {
               className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-purple-600/10 focus:border-purple-400 transition-all outline-none resize-none placeholder:text-slate-400"
             ></textarea>
           </div>
+
+          {/* Prioritas tiket ditetapkan oleh ENGINEERING_ADMIN, bukan RR saat pembuatan.
+              Default saat pembuatan adalah 'NORMAL' (ditangani di server action). */}
+
+          {/* Scheduled Date & Time */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              Jadwal Pengerjaan <span className="text-slate-400 font-normal">(Opsional)</span>
+            </label>
+            <input
+              type="datetime-local"
+              name="scheduled_at"
+              className="w-full bg-slate-50/50 border border-slate-200 text-slate-700 py-3.5 px-4 rounded-xl focus:bg-white focus:ring-4 focus:ring-purple-600/10 focus:border-purple-400 transition-all outline-none"
+            />
+            <p className="text-xs text-slate-400">
+              Biarkan kosong jika bisa dikerjakan segera (target 1 hari kerja).
+            </p>
+          </div>
         </div>
 
         {/* Footer Actions */}
@@ -197,13 +226,13 @@ export default function CreateTicketForm() {
                   >
                     Kembali
                   </button>
-                  <Link
-                    href={`/tickets/${createdTicket.id}/print`}
+                  <button
+                    onClick={handlePrintTicket}
                     className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors"
                   >
                     <Printer className="w-4 h-4" />
                     Cetak Tiket
-                  </Link>
+                  </button>
                 </div>
               </div>
             </motion.div>

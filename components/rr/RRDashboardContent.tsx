@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   Ticket,
   CheckCircle2,
@@ -51,6 +52,7 @@ interface KpiCard {
 }
 
 export default function RRDashboardContent({ userProfile }: { userProfile: UserProfile }) {
+  const router = useRouter()
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [stats, setStats] = useState<Stats>({ total: 0, new: 0, inProgress: 0, completed: 0 })
   const [loading, setLoading] = useState(true)
@@ -100,10 +102,22 @@ export default function RRDashboardContent({ userProfile }: { userProfile: UserP
         priority: ticket.status === 'NEW' ? 'high' as const : 'medium' as const,
         action: {
           label: 'Detail',
-          onClick: () => window.location.href = `/tickets/${ticket.id}`
-        }
+          onClick: () => router.push(`/tickets/${ticket.id}`)
+        },
+        actions: [
+          {
+            label: 'Detail',
+            onClick: () => router.push(`/tickets/${ticket.id}`),
+            variant: 'secondary' as const
+          },
+          {
+            label: 'Cetak Tiket',
+            onClick: () => router.push(`/tickets/${ticket.id}/print`),
+            variant: 'primary' as const
+          }
+        ]
       }))
-  }, [tickets])
+  }, [tickets, router])
 
   // Status distribution
   const statusDistribution = [

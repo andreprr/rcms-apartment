@@ -51,6 +51,17 @@ export async function POST(request: Request) {
 
     // Handle file uploads
     const fileKeys = Array.from(formData.keys()).filter(k => k.startsWith('file_'))
+    const beforePaths: string[] = []
+    const processPaths: string[] = []
+    const afterPaths: string[] = []
+    const uploadedAttachmentIds: string[] = []
+
+    const pushForCategory = (category: string, path: string) => {
+      if (category === 'BEFORE') beforePaths.push(path)
+      else if (category === 'AFTER') afterPaths.push(path)
+      else processPaths.push(path)
+    }
+
     for (const key of fileKeys) {
       const file = formData.get(key) as File
       const typeKey = key.replace('file_', 'file_type_')
@@ -65,27 +76,40 @@ export async function POST(request: Request) {
           .upload(fileName, file)
 
         if (!uploadError) {
-          await supabase.from('ticket_attachments').insert({
-            ticket_id: ticketId,
-            uploaded_by: profile.id,
-            photo_type: photoType,
-            storage_path: fileName,
-            file_name: file.name,
-            file_type: file.type,
-            file_size: file.size,
-          })
+          const { data: inserted, error: insertError } = await supabase
+            .from('ticket_attachments')
+            .insert({
+              ticket_id: ticketId,
+              uploaded_by: profile.id,
+              photo_type: photoType,
+              storage_path: fileName,
+              file_name: file.name,
+              file_type: file.type,
+              file_size: file.size,
+            })
+            .select('id')
+            .single()
+
+          if (!insertError && inserted) {
+            uploadedAttachmentIds.push(inserted.id)
+            pushForCategory(photoType, fileName)
+          }
         }
       }
     }
 
     // Create daily log
-    await supabase.from('ticket_daily_logs').insert({
-      ticket_id: ticketId,
-      engineering_id: profile.id,
-      day_number: dayNumber,
-      work_description: workDescription || '',
-      action_type: actionType,
-    })
+    const { data: dailyLog } = await supabase
+      .from('ticket_daily_logs')
+      .insert({
+        ticket_id: ticketId,
+        engineering_id: profile.id,
+        day_number: dayNumber,
+        work_description: workDescription || '',
+        action_type: actionType,
+      })
+      .select('id')
+      .single()
 
     // Update ticket status and stage
     const updates: Record<string, any> = {
@@ -98,8 +122,20 @@ export async function POST(request: Request) {
     }
 
     if (isFinishAction) {
-      updates.status = 'WAITING_CONFIRMATION'
+      updates.status = 'REVIEW_FINISH'
       updates.submitted_at = new Date().toISOString()
+      updates.finish_notes = workDescription || ''
+      if (beforePaths.length > 0) updates.before_photo_paths = beforePaths
+      if (processPaths.length > 0) updates.process_photo_paths = processPaths
+      if (afterPaths.length > 0) updates.after_photo_paths = afterPaths
+
+      // Tautkan lampiran finish ke log entry (daily_logs)
+      if (dailyLog?.id && uploadedAttachmentIds.length > 0) {
+        await supabase
+          .from('ticket_attachments')
+          .update({ daily_log_id: dailyLog.id })
+          .in('id', uploadedAttachmentIds)
+      }
     }
 
     await supabase
@@ -113,7 +149,7 @@ export async function POST(request: Request) {
       user_id: profile.id,
       action: isFinishAction ? 'SUBMITTED_COMPLETION' : `DAY_${dayNumber}_LOG`,
       description: isFinishAction
-        ? `Pekerjaan selesai dan menunggu konfirmasi resident oleh ${profile.full_name}`
+        ? `Teknisi telah menyelesaikan pengerjaan. Menunggu review & persetujuan Engineering Admin oleh ${profile.full_name}`
         : `Progress Day ${dayNumber}: ${workDescription || 'No description'}`,
     })
 
@@ -121,7 +157,11 @@ export async function POST(request: Request) {
     revalidatePath('/engineering/task')
     revalidatePath(`/tickets/${ticketId}`)
 
-    return NextResponse.json({ success: true, message: 'Work action saved' })
+    return NextResponse.json({
+      success: true,
+      message: 'Work action saved',
+      newStatus: isFinishAction ? 'REVIEW_FINISH' : updates.status || ticket.status,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error'
     console.error('Error processing work action:', message)

@@ -15,17 +15,23 @@ export async function GET(
   }
 
   try {
-    // Fetch photos for ticket
+    // Fetch semua foto tiket (BEFORE / PROGRESS / AFTER / dll) agar bisa dikelompokkan
     const { data: photos, error } = await supabase
       .from('ticket_attachments')
       .select('id, storage_path, file_name, photo_type')
       .eq('ticket_id', id)
-      .eq('photo_type', 'AFTER')
       .order('created_at', { ascending: true })
 
     if (error) throw error
 
-    return NextResponse.json({ photos: photos || [] })
+    const resolved = (photos || []).map((p: any) => ({
+      id: p.id,
+      storage_path: supabase.storage.from('ticket-attachments').getPublicUrl(p.storage_path).data.publicUrl,
+      file_name: p.file_name,
+      photo_type: p.photo_type,
+    }))
+
+    return NextResponse.json({ photos: resolved })
   } catch (error: any) {
     console.error('Error fetching photos:', error)
     return NextResponse.json({ error: error.message || 'Failed to fetch photos' }, { status: 500 })

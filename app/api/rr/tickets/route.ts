@@ -36,12 +36,23 @@ export async function GET(request: NextRequest) {
         id,
         ticket_number,
         problem,
+        description,
         status,
+        priority,
+        scheduled_at,
         created_at,
         ticket_date,
         unit_code,
         resident_name,
-        phone_number
+        phone_number,
+        current_stage,
+        current_assignee_id,
+        assignments:ticket_assignments(
+          engineering:engineering_user_id(
+            full_name,
+            avatar_url
+          )
+        )
       `)
       .order('created_at', { ascending: false })
 
@@ -65,7 +76,7 @@ export async function GET(request: NextRequest) {
     const stats = {
       total: tickets?.length || 0,
       new: tickets?.filter(t => t.status === 'NEW').length || 0,
-      inProgress: tickets?.filter(t => t.status === 'ON_PROGRESS').length || 0,
+      inProgress: tickets?.filter(t => ['ASSIGNED', 'WAITING_ANALYSIS', 'ON_PROGRESS'].includes(t.status)).length || 0,
       completed: tickets?.filter(t => t.status === 'COMPLETED').length || 0,
     }
 

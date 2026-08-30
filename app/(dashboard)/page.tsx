@@ -22,7 +22,7 @@ export default async function RoleDashboardPage() {
   // Fetch stats for dashboard
   const { data: tickets } = await supabase
     .from('tickets')
-    .select('status, created_at')
+    .select('status, created_at, problem')
 
   const statusCounts = tickets?.reduce((acc, t) => {
     acc[t.status] = (acc[t.status] || 0) + 1
@@ -39,7 +39,7 @@ export default async function RoleDashboardPage() {
     onHold: statusCounts['ON_HOLD'] || 0
   }
 
-  // Generate trend data (last 14 days)
+  // Generate trend data (last 14 days) - deterministic based on date
   const trendData = Array.from({ length: 14 }, (_, i) => {
     const date = new Date()
     date.setDate(date.getDate() - (13 - i))
@@ -59,26 +59,62 @@ export default async function RoleDashboardPage() {
     { name: 'COMPLETED', value: statusCounts['COMPLETED'] || 0 },
   ].filter(s => s.value > 0)
 
-  // Category data
-  const categoryData = [
-    { category: 'Plumbing', count: 24 },
-    { category: 'Electrical', count: 18 },
-    { category: 'AC/AC', count: 15 },
-    { category: 'Painting', count: 12 },
-    { category: 'Structure', count: 8 }
-  ]
+  // Category data - derive from actual ticket data or use defaults
+  const problemCounts = tickets?.reduce((acc, t) => {
+    // Extract simple categories from problem text
+    const problem = (t.problem || '').toLowerCase()
+    if (problem.includes('pipa') || problem.includes('air') || problem.includes('wastafel') || problem.includes('keran')) {
+      acc['Plumbing'] = (acc['Plumbing'] || 0) + 1
+    } else if (problem.includes('listrik') || problem.includes('lampu') || problem.includes('stop kontak')) {
+      acc['Electrical'] = (acc['Electrical'] || 0) + 1
+    } else if (problem.includes('ac') || problem.includes('pendingin') || problem.includes('kondensor')) {
+      acc['AC'] = (acc['AC'] || 0) + 1
+    } else if (problem.includes('cat') || problem.includes('dinding') || problem.includes('wall')) {
+      acc['Painting'] = (acc['Painting'] || 0) + 1
+    } else if (problem.includes('pintu') || problem.includes('jendela') || problem.includes('kusen')) {
+      acc['Structure'] = (acc['Structure'] || 0) + 1
+    } else {
+      acc['Other'] = (acc['Other'] || 0) + 1
+    }
+    return acc
+  }, {} as Record<string, number>) || {}
 
-  // Workload data
+  const categoryData = Object.entries(problemCounts)
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  // Use actual ticket data for workload instead of random
+  const { data: engineerTickets } = await supabase
+    .from('tickets')
+    .select('current_assignee_id, status')
+
   const { data: engineers } = await supabase
     .from('users')
-    .select('full_name')
+    .select('id, full_name')
     .eq('role', 'ENGINEERING')
 
-  const workloadData = (engineers || []).map(e => ({
-    engineer: e.full_name,
-    assigned: Math.floor(Math.random() * 5) + 1,
-    completed: Math.floor(Math.random() * 4) + 1
-  }))
+  // Calculate actual workload for each engineer from ticket data
+  const engineerMap = new Map<string, { assigned: number; completed: number }>()
+  engineerTickets?.forEach(t => {
+    if (t.current_assignee_id) {
+      const current = engineerMap.get(t.current_assignee_id) || { assigned: 0, completed: 0 }
+      current.assigned += 1
+      if (t.status === 'COMPLETED') {
+        current.completed += 1
+      }
+      engineerMap.set(t.current_assignee_id, current)
+    }
+  })
+
+  const workloadData = (engineers || []).map(e => {
+    const workload = engineerMap.get(e.id) || { assigned: 0, completed: 0 }
+    return {
+      engineer: e.full_name,
+      assigned: workload.assigned,
+      completed: workload.completed
+    }
+  })
 
   const userProfile = {
     full_name: profile.full_name,

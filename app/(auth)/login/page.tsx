@@ -235,7 +235,7 @@ export default function LoginPage() {
 
               <div className="text-center pt-2">
                 <p className="text-[11px] text-slate-500">
-                  © 2026{' '}
+                  {'©'} 2026{' '}
                   <span className="text-[#4ade80] font-medium">
                     Gateway Apartment Bandung
                   </span>
@@ -394,15 +394,15 @@ export default function LoginPage() {
           >
             <span className="flex items-center gap-6 pr-6">
               <span className="text-[#4ade80]">{marqueeText}</span>
-              <span className="text-slate-600">//</span>
+              <span className="text-slate-600">{/* */}</span>
               <span className="text-white">{marqueeText}</span>
-              <span className="text-slate-600">//</span>
+              <span className="text-slate-600">{/* */}</span>
             </span>
             <span className="flex items-center gap-6 pr-6">
               <span className="text-[#4ade80]">{marqueeText}</span>
-              <span className="text-slate-600">//</span>
+              <span className="text-slate-600">{/* */}</span>
               <span className="text-white">{marqueeText}</span>
-              <span className="text-slate-600">//</span>
+              <span className="text-slate-600">{/* */}</span>
             </span>
           </motion.div>
         </div>

@@ -16,6 +16,11 @@ interface ReminderCardProps {
       label: string
       onClick: () => void
     }
+    actions?: Array<{
+      label: string
+      onClick: () => void
+      variant?: 'primary' | 'secondary'
+    }>
   }>
   emptyText?: string
   className?: string
@@ -86,8 +91,25 @@ export function ReminderCard({
                     <p className="text-xs text-slate-400 line-clamp-2">{item.description}</p>
                   )}
 
-                  {/* Action Button */}
-                  {item.action && (
+                  {/* Action Buttons */}
+                  {item.actions && item.actions.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {item.actions.map((a, i) => (
+                        <button
+                          key={i}
+                          onClick={a.onClick}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            a.variant === 'primary'
+                              ? 'text-purple-600 bg-purple-50 hover:bg-purple-100'
+                              : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                          }`}
+                        >
+                          {a.label}
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : item.action ? (
                     <button
                       onClick={item.action.onClick}
                       className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
@@ -95,7 +117,7 @@ export function ReminderCard({
                       {item.action.label}
                       <ArrowRight className="w-3 h-3" />
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </motion.div>
             ))}
