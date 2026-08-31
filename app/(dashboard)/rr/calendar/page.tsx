@@ -15,6 +15,18 @@ import {
 import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -40,7 +52,7 @@ export default function RRCalendarPage() {
       setLoading(true)
       try {
         const response = await fetch('/api/rr/tickets')
-        const result = await response.json()
+        const result = await safeJson(response)
         if (result.tickets) {
           setTickets(result.tickets)
         }

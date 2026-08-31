@@ -30,6 +30,18 @@ import { updateTicketStage, submitCompletion } from '@/actions/engineering-work'
 import { completeSiteInspection } from '@/actions/tickets'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -92,7 +104,7 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
       setLoading(true)
       try {
         const response = await fetch('/api/engineering/my-tickets')
-        const data = await response.json()
+        const data = await safeJson(response)
         if (data.tickets) {
           setTickets(data.tickets)
         }
@@ -190,7 +202,7 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
       <div className="mt-4 flex items-center justify-between">
         <ChartLegend
           items={[
-            { color: '#10B981', label: 'Jam Kerja' }
+            { color: '#C5B4FC', label: 'Jam Kerja' }
           ]}
         />
         <div className="text-right">
@@ -214,7 +226,7 @@ export default function EngineeringDashboardClient({ userProfile }: EngineeringD
           value={completionRate}
           label="Tingkat Penyelesaian"
           subtitle="Bulan ini"
-          color="#10B981"
+          color="#D2F377"
         />
       </div>
     </div>

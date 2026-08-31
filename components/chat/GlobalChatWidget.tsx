@@ -85,6 +85,11 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
   const [unread, setUnread] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Ref yang merefleksikan peer aktif, agar subscription realtime tidak
+  // perlu di-subscribe ulang setiap kali peer berubah (hanya subscribe sekali).
+  const peerRef = useRef<ChatUser | null>(null)
+  peerRef.current = peer
+
   // Mark pesan sebagai dibaca
   const markRead = useCallback((senderId: string, messageId: string) => {
     supabaseRef.current
@@ -146,7 +151,9 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
   }, [])
 
   // ------------------------------------------------------------------
-  // Realtime inbox: listen semua pesan masuk untuk user ini
+  // Realtime inbox: listen semua pesan masuk untuk user ini.
+  // Subscribe sekali saat mount & cleanup saat unmount. Callback membaca
+  // peer aktif dari ref supaya tidak re-subscribe pada setiap state update.
   // ------------------------------------------------------------------
   useEffect(() => {
     const supabase = supabaseRef.current
@@ -162,7 +169,9 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
         },
         (payload) => {
           const msg = payload.new as DirectMessage
-          if (peer && msg.sender_id === peer.id) {
+          const activePeer = peerRef.current
+          // Hanya tampilkan pesan milik percakapan yang sedang aktif.
+          if (activePeer && msg.sender_id === activePeer.id) {
             // Dedup: jangan tambah bila id sudah ada (hindari render ganda).
             setMessages((prev) =>
               prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
@@ -178,7 +187,7 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [currentUser.id, peer, markRead])
+  }, [currentUser.id, markRead])
 
   // ------------------------------------------------------------------
   // Load conversation saat peer berubah
@@ -266,17 +275,21 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
       if (!text || !peer || sending) return
       setSending(true)
 
-      // 1. OptIMISTIC UPDATE: tampilkan pesan sementara segera sebelum insert.
+      // 1. OPTIMISTIC UPDATE: tampilkan pesan sementara segera sebelum insert.
       const tempId = `tmp-${Date.now()}`
       const optimistic: DirectMessage = {
         id: tempId,
         sender_id: currentUser.id,
-        receiver_id: peer.id,
+        receiver_id: peerRef.current!.id,
         message: text,
         read_at: null,
         created_at: new Date().toISOString(),
       }
-      setMessages((prev) => [...prev, optimistic])
+      // Append tanpa menghapus pesan yang sudah ada (hanya tambahan terakhir).
+      setMessages((prev) =>
+        prev.some((m) => m.id === optimistic.id) ? prev : [...prev, optimistic]
+      )
+      // Hanya kosongkan kolom input, jangan reset state messages.
       setInput('')
 
       // 2. INSERT ke DB, minta record asli balik (.select().single()).
@@ -284,7 +297,7 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
         .from('direct_messages')
         .insert({
           sender_id: currentUser.id,
-          receiver_id: peer.id,
+          receiver_id: peerRef.current!.id,
           message: text,
         })
         .select()
@@ -299,7 +312,7 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
       )
       setSending(false)
     },
-    [input, peer, sending, currentUser.id]
+    [input, sending, currentUser.id]
   )
 
   const groupedUsers = useMemo(() => {
@@ -332,11 +345,11 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                 setUnread(0)
                 if (directories.length === 0) loadUsers()
               }}
-              className="relative w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white flex items-center justify-center shadow-xl hover:shadow-2xl transition-all cursor-pointer"
+              className="relative w-16 h-16 rounded-full bg-[#F7D794] hover:bg-[#EDA6A3] text-[#192A56] flex items-center justify-center shadow-xl hover:shadow-2xl transition-all cursor-pointer"
             >
               <MessageCircle className="w-7 h-7" />
               {unread > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full bg-red-500 border-2 border-white text-xs font-bold flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 min-w-[24px] h-6 px-1.5 rounded-full bg-[#EDA6A3] border-2 border-[#FCFBFB] text-xs font-bold flex items-center justify-center text-[#192A56]">
                   {unread > 99 ? '99+' : unread}
                 </span>
               )}
@@ -353,10 +366,10 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
               transition={{ duration: 0.18 }}
-              className="fixed bottom-24 right-6 z-50 w-[94vw] max-w-[400px] h-[560px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+              className="fixed bottom-24 right-6 z-50 w-[94vw] max-w-[400px] h-[560px] max-h-[80vh] bg-[#FCFBFB] rounded-2xl shadow-2xl border border-[#F7D794]/40 overflow-hidden flex flex-col"
             >
               {/* Header */}
-              <div className="bg-gradient-to-r from-purple-600 to-purple-500 text-white px-4 py-3 flex items-center justify-between">
+              <div className="bg-[#192A56] text-[#FCFBFB] px-4 py-3 flex items-center justify-between border-b border-[#F7D794]/30">
                 <div className="flex items-center gap-2 min-w-0">
                   {peer && (
                     <button
@@ -364,13 +377,13 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                         setPeer(null)
                         setTicketContext(null)
                       }}
-                      className="p-1 shrink-0 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
+                      className="p-1 shrink-0 hover:bg-[#F7D794]/20 rounded-lg transition-colors cursor-pointer"
                     >
                       <ChevronLeft className="w-5 h-5" />
                     </button>
                   )}
                   <div className="min-w-0">
-                    <p className="font-bold text-sm leading-tight truncate">
+                    <p className="font-bold text-sm leading-tight truncate text-[#F7D794]">
                       {peer
                         ? ticketContext
                           ? `Tiket ${ticketContext.ticket_number}`
@@ -378,7 +391,7 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                         : 'Pesan'}
                     </p>
                     {peer && (
-                      <p className="text-xs text-white/80 leading-tight truncate">
+                      <p className="text-xs text-[#FCFBFB]/80 leading-tight truncate">
                         {ticketContext ? ticketContext.problem : `${ROLE_LABELS[peer.role] || peer.role} • ${peer.division || '-'}`}
                       </p>
                     )}
@@ -386,7 +399,7 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                 </div>
                 <button
                   onClick={() => setOpen(false)}
-                  className="p-1.5 shrink-0 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 shrink-0 hover:bg-[#F7D794]/20 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -397,9 +410,9 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                 {peer ? (
                   /* CHAT PANEL */
                   <>
-                    <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50">
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-[#FCFBFB]">
                       {messages.length === 0 && (
-                        <p className="text-center text-xs text-slate-400 mt-8">
+                        <p className="text-center text-xs text-[#192A56]/50 mt-8">
                           Belum ada pesan. Mulai percakapan!
                         </p>
                       )}
@@ -410,12 +423,12 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                             key={m.id}
                             className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm leading-snug break-words ${
                               mine
-                                ? 'bg-purple-600 text-white ml-auto rounded-br-sm'
-                                : 'bg-white border border-slate-200 mr-auto rounded-bl-sm'
+                                ? 'bg-[#F7D794] text-[#192A56] ml-auto rounded-br-sm'
+                                : 'bg-[#EDA6A3] text-[#192A56] mr-auto rounded-bl-sm'
                             }`}
                           >
                             <p>{m.message}</p>
-                            <p className={`text-[10px] mt-0.5 ${mine ? 'text-white/70' : 'text-slate-400'}`}>
+                            <p className={`text-[10px] mt-0.5 ${mine ? 'text-[#192A56]/70' : 'text-[#192A56]/70'}`}>
                               {new Date(m.created_at).toLocaleTimeString('id-ID', {
                                 hour: '2-digit',
                                 minute: '2-digit',
@@ -428,18 +441,18 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                     </div>
                     <form
                       onSubmit={(e) => handleSend(e)}
-                      className="p-3 border-t border-slate-200 bg-white flex items-center gap-2"
+                      className="p-3 border-t border-[#F7D794]/30 bg-[#FCFBFB] flex items-center gap-2"
                     >
                       <input
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Tulis pesan..."
-                        className="flex-1 px-3 py-2 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-400/40"
+                        className="flex-1 px-3 py-2 bg-[#FCFBFB] text-[#192A56] placeholder:text-[#192A56]/40 rounded-xl text-sm border border-[#F7D794]/40 focus:outline-none focus:ring-2 focus:ring-[#F7D794]"
                       />
                       <button
                         type="submit"
                         disabled={sending || !input.trim()}
-                        className="p-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-40 cursor-pointer transition-colors"
+                        className="p-2.5 rounded-xl bg-[#F7D794] hover:bg-[#EDA6A3] text-[#192A56] disabled:opacity-40 cursor-pointer transition-colors"
                       >
                         {sending ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -453,7 +466,7 @@ export default function GlobalChatWidget({ currentUser }: GlobalChatWidgetProps)
                   /* DIRECTORY + TABS */
                   <>
                     {/* Tabs */}
-                    <div className="flex border-b border-slate-200">
+                    <div className="flex border-b border-[#F7D794]/30">
                       <TabButton
                         active={activeTab === 'users'}
                         onClick={() => {
@@ -517,8 +530,8 @@ function TabButton({
       onClick={onClick}
       className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition-colors cursor-pointer ${
         active
-          ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50/50'
-          : 'text-slate-500 hover:text-slate-700'
+          ? 'text-[#F7D794] border-b-2 border-[#F7D794] bg-[#192A56]/5'
+          : 'text-[#192A56]/50 hover:text-[#192A56]'
       }`}
     >
       {icon}
@@ -546,16 +559,16 @@ function UsersDirectory({
   const onlineCount = Object.keys(onlineUsers).filter((id) => id).length
   return (
     <div className="p-2 space-y-3">
-      <div className="px-2 py-1 text-xs text-slate-400 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+      <div className="px-2 py-1 text-xs text-[#192A56]/50 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-[#D2F377]" />
         {loading ? 'Memuat...' : `${onlineCount} online sekarang`}
       </div>
       {Object.keys(groupedUsers).length === 0 && !loading && (
-        <p className="text-center text-xs text-slate-400 py-8">Tidak ada pengguna lain.</p>
+        <p className="text-center text-xs text-[#192A56]/40 py-8">Tidak ada pengguna lain.</p>
       )}
       {Object.entries(groupedUsers).map(([role, users]) => (
         <div key={role}>
-          <p className="px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+          <p className="px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-[#F7D794]">
             {ROLE_LABELS[role] || role}
           </p>
           <div className="space-y-0.5">
@@ -565,24 +578,24 @@ function UsersDirectory({
                 <button
                   key={u.id}
                   onClick={() => onSelect(u)}
-                  className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-left"
+                  className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-[#F7D794]/10 transition-colors cursor-pointer text-left"
                 >
                   <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white font-bold text-sm">
+                    <div className="w-10 h-10 rounded-full bg-[#F7D794] flex items-center justify-center text-[#192A56] font-bold text-sm">
                       {u.full_name.charAt(0).toUpperCase()}
                     </div>
                     <span
-                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                        online ? 'bg-emerald-500' : 'bg-slate-300'
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#FCFBFB] ${
+                        online ? 'bg-[#D2F377]' : 'bg-[#EDA6A3]'
                       }`}
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{u.full_name}</p>
-                    <p className="text-xs text-slate-400 truncate">{u.division}</p>
+                    <p className="text-sm font-semibold text-[#192A56] truncate">{u.full_name}</p>
+                    <p className="text-xs text-[#192A56]/50 truncate">{u.division}</p>
                   </div>
                   <span
-                    className={`text-xs font-medium ${online ? 'text-emerald-600' : 'text-slate-400'}`}
+                    className={`text-xs font-medium ${online ? 'text-[#192A56]' : 'text-[#192A56]/40'}`}
                   >
                     {online ? 'Online' : 'Offline'}
                   </span>
@@ -609,26 +622,26 @@ function TicketsList({
   return (
     <div className="p-2 space-y-1">
       {tickets.length === 0 && (
-        <p className="text-center text-xs text-slate-400 py-8">Tidak ada tiket aktif.</p>
+        <p className="text-center text-xs text-[#192A56]/40 py-8">Tidak ada tiket aktif.</p>
       )}
       {tickets.map((t) => (
         <button
           key={t.id}
           onClick={() => onSelect(t)}
-          className="w-full flex items-start gap-3 px-2 py-2.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-left"
+          className="w-full flex items-start gap-3 px-2 py-2.5 rounded-xl hover:bg-[#F7D794]/10 transition-colors cursor-pointer text-left"
         >
-          <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-            <TicketIcon className="w-4 h-4 text-purple-600" />
+          <div className="w-9 h-9 rounded-lg bg-[#F7D794]/20 flex items-center justify-center shrink-0">
+            <TicketIcon className="w-4 h-4 text-[#F7D794]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-800 truncate">{t.ticket_number}</p>
-            <p className="text-xs text-slate-500 truncate">{t.problem}</p>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-sm font-semibold text-[#192A56] truncate">{t.ticket_number}</p>
+            <p className="text-xs text-[#192A56]/60 truncate">{t.problem}</p>
+            <p className="text-[11px] text-[#192A56]/40">
               {t.unit_code} • {t.resident_name}
             </p>
           </div>
           {t.creators && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#EDA6A3]/20 text-[#192A56]/70 shrink-0">
               {t.creators.full_name}
             </span>
           )}

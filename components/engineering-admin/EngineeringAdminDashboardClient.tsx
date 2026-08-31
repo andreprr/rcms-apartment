@@ -34,6 +34,18 @@ import RescheduleModal from '@/components/engineering-admin/RescheduleModal'
 import InspectionReviewModal from '@/components/engineering-admin/InspectionReviewModal'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -91,7 +103,7 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
       setLoading(true)
       try {
         const response = await fetch('/api/engineering-admin/tickets')
-        const data = await response.json()
+        const data = await safeJson(response)
         if (data.tickets) {
           setTickets(data.tickets)
         }
@@ -162,10 +174,10 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
 
   // Status distribution for donut
   const statusDistribution = [
-    { label: 'Baru', value: stats.new, color: '#3B82F6' },
-    { label: 'Ditugaskan', value: stats.assigned, color: '#8B5CF6' },
-    { label: 'Menunggu Analisis', value: stats.waitingAnalysis, color: '#F59E0B' },
-    { label: 'Diproses', value: stats.inProgress, color: '#EF4444' },
+    { label: 'Baru', value: stats.new, color: '#D2F377' },
+    { label: 'Ditugaskan', value: stats.assigned, color: '#C5B4FC' },
+    { label: 'Menunggu Analisis', value: stats.waitingAnalysis, color: '#FFEAA5' },
+    { label: 'Diproses', value: stats.inProgress, color: '#FFC2BD' },
     { label: 'Pending', value: stats.waitingConfirmation, color: '#EC4899' },
   ]
 
@@ -255,7 +267,7 @@ export default function EngineeringAdminDashboardClient({ userProfile }: Enginee
       <div className="mt-4">
         <ChartLegend
           items={[
-            { color: '#10B981', label: 'Tiket Selesai' }
+            { color: '#D2F377', label: 'Tiket Selesai' }
           ]}
         />
       </div>

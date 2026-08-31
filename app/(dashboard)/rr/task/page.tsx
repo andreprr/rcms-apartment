@@ -29,6 +29,18 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -74,7 +86,7 @@ export default function RRTasksPage({ userProfile }: { userProfile: UserProfile 
       setLoading(true)
       try {
         const response = await fetch('/api/rr/tickets')
-        const result = await response.json()
+        const result = await safeJson(response)
         if (result.tickets) {
           setTickets(result.tickets)
         }
@@ -106,7 +118,7 @@ export default function RRTasksPage({ userProfile }: { userProfile: UserProfile 
   async function fetchTicketPhotos(ticketId: string) {
     try {
       const response = await fetch(`/api/tickets/${ticketId}/photos`)
-      const data = await response.json()
+      const data = await safeJson(response)
       if (data.photos) {
         setPhotoUrls(data.photos.map((p: any) => p.storage_path))
       }

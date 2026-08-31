@@ -100,14 +100,14 @@ const RANGE_LABEL: Record<RangeKey, string> = {
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  NEW: { label: 'Baru', color: '#3B82F6' },
-  ASSIGNED: { label: 'Ditugaskan', color: '#6366F1' },
-  ON_PROGRESS: { label: 'Diproses', color: '#F59E0B' },
-  WAITING_CONFIRMATION: { label: 'Menunggu', color: '#8B5CF6' },
-  COMPLETED: { label: 'Selesai', color: '#10B981' },
-  REWORK: { label: 'Rework', color: '#F43F5E' },
-  ON_HOLD: { label: 'Ditahan', color: '#64748B' },
-  CANCELLED: { label: 'Dibatalkan', color: '#EF4444' },
+  NEW: { label: 'Baru', color: '#D2F377' },
+  ASSIGNED: { label: 'Ditugaskan', color: '#E9E2FE' },
+  ON_PROGRESS: { label: 'Diproses', color: '#FFEAA5' },
+  WAITING_CONFIRMATION: { label: 'Menunggu', color: '#C5B4FC' },
+  COMPLETED: { label: 'Selesai', color: '#D2F377' },
+  REWORK: { label: 'Rework', color: '#FFC2BD' },
+  ON_HOLD: { label: 'Ditahan', color: '#94A3B8' },
+  CANCELLED: { label: 'Dibatalkan', color: '#FFC2BD' },
 }
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -350,9 +350,9 @@ export default function AdminAnalyticsClient({
   }, [raw, range])
 
   const csatGauge = useMemo(() => [
-    { name: 'Sangat Puas', value: csat.sangatPuas, fill: '#10B981' },
-    { name: 'Netral', value: csat.netral, fill: '#F59E0B' },
-    { name: 'Buruk', value: csat.buruk, fill: '#EF4444' },
+    { name: 'Sangat Puas', value: csat.sangatPuas, fill: '#D2F377' },
+    { name: 'Netral', value: csat.netral, fill: '#FFEAA5' },
+    { name: 'Buruk', value: csat.buruk, fill: '#FFC2BD' },
   ], [csat])
 
   // ================= EXPORTS =================
@@ -668,11 +668,11 @@ export default function AdminAnalyticsClient({
               <ResponsiveContainer width="55%" height={210}>
                 <PieChart>
                   <Pie data={[
-                    { name: 'Tampil', value: csat.visible, color: '#10B981' },
-                    { name: 'Disembunyikan', value: csat.hidden, color: '#EF4444' },
+                    { name: 'Tampil', value: csat.visible, color: '#D2F377' },
+                    { name: 'Disembunyikan', value: csat.hidden, color: '#FFC2BD' },
                   ]} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} dataKey="value">
-                    <Cell fill="#10B981" />
-                    <Cell fill="#EF4444" />
+                    <Cell fill="#D2F377" />
+                    <Cell fill="#FFC2BD" />
                   </Pie>
                   <Tooltip />
                 </PieChart>
@@ -716,8 +716,8 @@ export default function AdminAnalyticsClient({
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11 }} />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Line type="monotone" dataKey="created" name="Dibuat" stroke="#8B5CF6" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="completed" name="Selesai" stroke="#10B981" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="created" name="Dibuat" stroke="#C5B4FC" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="completed" name="Selesai" stroke="#D2F377" strokeWidth={2.5} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -739,7 +739,7 @@ export default function AdminAnalyticsClient({
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 11 }} />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Bar dataKey="value" name="Jumlah" fill="#8B5CF6" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="value" name="Jumlah" fill="#E9E2FE" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -761,7 +761,7 @@ export default function AdminAnalyticsClient({
             <ResponsiveContainer width="50%" height={240}>
               <PieChart>
                 <Pie data={buildingData} cx="50%" cy="50%" innerRadius={55} outerRadius={88} paddingAngle={3} dataKey="value">
-                  {buildingData.map((e, i) => <Cell key={i} fill={['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#EF4444'][i % 6]} />)}
+                  {buildingData.map((e, i) => <Cell key={i} fill={['#D2F377', '#C5B4FC', '#FFC2BD', '#FFEAA5', '#0F0F0F', '#E9E2FE'][i % 6]} />)}
                 </Pie>
                 <Tooltip />
               </PieChart>
@@ -770,7 +770,7 @@ export default function AdminAnalyticsClient({
               {buildingData.map((b, i) => (
                 <div key={b.name} className="flex items-center justify-between text-sm py-1">
                   <span className="text-slate-600 flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ background: ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#EF4444'][i % 6] }} />
+                    <span className="w-3 h-3 rounded-full" style={{ background: ['#D2F377', '#C5B4FC', '#FFC2BD', '#FFEAA5', '#0F0F0F', '#E9E2FE'][i % 6] }} />
                     {b.name}
                   </span>
                   <span className="font-semibold text-slate-800">{b.value}</span>

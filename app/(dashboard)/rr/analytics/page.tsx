@@ -19,7 +19,7 @@ import {
 } from 'recharts'
 import { Loader2, TrendingUp, TrendingDown, Ticket, Clock, CheckCircle2 } from 'lucide-react'
 
-const COLORS = ['#8B5CF6', '#A78BFA', '#C4B5FD', '#DDD6FE', '#EDE9FE']
+const COLORS = ['#D2F377', '#C5B4FC', '#FFC2BD', '#FFEAA5', '#0F0F0F']
 
 export default function RRAnalyticsPage() {
   const [loading, setLoading] = useState(true)
@@ -158,8 +158,8 @@ export default function RRAnalyticsPage() {
               <YAxis stroke="#94A3B8" fontSize={12} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="complaints" stroke="#8B5CF6" strokeWidth={2} name="Komplain" />
-              <Line type="monotone" dataKey="completed" stroke="#10B981" strokeWidth={2} name="Selesai" />
+              <Line type="monotone" dataKey="complaints" stroke="#C5B4FC" strokeWidth={2} name="Komplain" />
+              <Line type="monotone" dataKey="completed" stroke="#D2F377" strokeWidth={2} name="Selesai" />
             </LineChart>
           </ResponsiveContainer>
         </motion.div>
@@ -225,7 +225,7 @@ export default function RRAnalyticsPage() {
               <XAxis dataKey="tower" stroke="#94A3B8" fontSize={12} />
               <YAxis stroke="#94A3B8" fontSize={12} />
               <Tooltip />
-              <Bar dataKey="complaints" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="complaints" fill="#C5B4FC" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>

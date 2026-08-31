@@ -19,6 +19,18 @@ import {
 import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 // Types
 interface UserData {
   id: string
@@ -120,10 +132,10 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
     byRole: ROLE_OPTIONS.map(r => ({
       label: r.label.split(' ')[0],
       value: users.filter(u => u.role === r.value).length,
-      color: r.color.includes('red') ? '#EF4444' :
-             r.color.includes('blue') ? '#3B82F6' :
-             r.color.includes('amber') ? '#F59E0B' :
-             r.color.includes('emerald') ? '#10B981' : '#8B5CF6'
+      color: r.color.includes('red') ? '#FFC2BD' :
+             r.color.includes('blue') ? '#C5B4FC' :
+             r.color.includes('amber') ? '#FFEAA5' :
+             r.color.includes('emerald') ? '#D2F377' : '#E9E2FE'
     }))
   }
 
@@ -177,7 +189,7 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
       <div className="mt-4">
         <ChartLegend
           items={[
-            { color: '#10B981', label: 'Aktivitas' }
+            { color: '#C5B4FC', label: 'Aktivitas' }
           ]}
         />
       </div>
@@ -251,14 +263,14 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
         body: JSON.stringify({ full_name: fullName, username, email, password, role })
       })
 
-      const result = await response.json()
+      const result = await safeJson(response)
 
       if (!response.ok) {
         throw new Error(result.error || 'Gagal membuat pengguna')
       }
 
       const refreshResponse = await fetch('/api/admin/users')
-      const refreshData = await refreshResponse.json()
+      const refreshData = await safeJson(refreshResponse)
       setUsers(refreshData.users || [])
 
       setShowModal(false)
@@ -279,7 +291,7 @@ export default function AdminUserManagementClient({ initialUsers }: AdminUserMan
         body: JSON.stringify({ userId, is_active: !currentStatus })
       })
 
-      const result = await response.json()
+      const result = await safeJson(response)
 
       if (!response.ok) {
         throw new Error(result.error || 'Gagal mengubah status')

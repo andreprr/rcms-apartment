@@ -6,6 +6,18 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/ui/Sidebar'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -45,7 +57,7 @@ export default function EngineeringAdminClient({ initialStats, engineers }: { in
   const [chartData] = useState([{ day: 'S', value: 0 }, { day: 'M', value: 0 }, { day: 'T', value: 0 }, { day: 'W', value: 0 }, { day: 'T', value: 0 }, { day: 'F', value: 0 }, { day: 'S', value: 0 }])
 
   useEffect(() => {
-    fetch('/api/engineering-admin/tickets').then(r => r.json()).then(d => {
+    fetch('/api/engineering-admin/tickets').then(r => safeJson(r)).then(d => {
       if (d.tickets) setTickets(d.tickets)
     })
   }, [])

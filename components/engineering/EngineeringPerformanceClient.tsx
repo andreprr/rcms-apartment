@@ -27,6 +27,18 @@ import {
 } from 'lucide-react'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface UserProfile {
   full_name: string
   division: string
@@ -61,7 +73,7 @@ export default function EngineeringPerformanceClient({ userProfile }: { userProf
       setLoading(true)
       try {
         const response = await fetch('/api/engineering/performance')
-        const data = await response.json()
+        const data = await safeJson(response)
         if (data.performance) {
           setPerformance(data.performance)
         } else {
@@ -125,7 +137,7 @@ export default function EngineeringPerformanceClient({ userProfile }: { userProf
   if (loading || !performance) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F7D794]"></div>
       </div>
     )
   }
@@ -316,8 +328,8 @@ export default function EngineeringPerformanceClient({ userProfile }: { userProf
                 />
                 <defs>
                   <linearGradient id="workHoursGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8B5CF6" />
-                    <stop offset="100%" stopColor="#A78BFA" />
+                    <stop offset="0%" stopColor="#C5B4FC" />
+                    <stop offset="100%" stopColor="#E9E2FE" />
                   </linearGradient>
                 </defs>
               </BarChart>
@@ -379,7 +391,7 @@ export default function EngineeringPerformanceClient({ userProfile }: { userProf
                 <Bar
                   yAxisId="left"
                   dataKey="completed"
-                  fill="#8B5CF6"
+                  fill="#C5B4FC"
                   radius={[4, 4, 0, 0]}
                   maxBarSize={30}
                 />
@@ -387,9 +399,9 @@ export default function EngineeringPerformanceClient({ userProfile }: { userProf
                   yAxisId="right"
                   type="monotone"
                   dataKey="avgRating"
-                  stroke="#F59E0B"
+                  stroke="#FFEAA5"
                   strokeWidth={2}
-                  dot={{ fill: '#F59E0B', r: 4 }}
+                  dot={{ fill: '#FFEAA5', r: 4 }}
                   name="Rating"
                 />
               </LineChart>

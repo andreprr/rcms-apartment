@@ -6,6 +6,18 @@ import { BarChart3, TrendingUp, Clock, AlertTriangle, CheckCircle2, Loader2, Ref
 import { AnalyticsCard, WeeklyBarChart, ChartLegend } from '@/components/dashboard/AnalyticsWidgets'
 import { ReminderCard, DonutCard } from '@/components/dashboard/RightWidgets'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -28,7 +40,7 @@ export default function EngineeringAdminAnalyticsPage() {
       setLoading(true)
       try {
         const r = await fetch('/api/engineering-admin/tickets')
-        const d = await r.json()
+        const d = await safeJson(r)
         if (d.tickets) setTickets(d.tickets)
       } catch (e) {
         console.error('Failed to fetch:', e)
@@ -89,9 +101,9 @@ export default function EngineeringAdminAnalyticsPage() {
   }, [tickets])
 
   const statusDistribution = [
-    { label: 'Baru', value: stats.new, color: '#3B82F6' },
-    { label: 'Ditugaskan', value: stats.assigned, color: '#8B5CF6' },
-    { label: 'Diproses', value: stats.inProgress, color: '#F59E0B' },
+    { label: 'Baru', value: stats.new, color: '#D2F377' },
+    { label: 'Ditugaskan', value: stats.assigned, color: '#C5B4FC' },
+    { label: 'Diproses', value: stats.inProgress, color: '#FFEAA5' },
     { label: 'Pending', value: stats.waiting, color: '#EC4899' },
   ]
 
@@ -202,7 +214,7 @@ export default function EngineeringAdminAnalyticsPage() {
           >
             <WeeklyBarChart data={chartData} height={280} />
             <div className="mt-4">
-              <ChartLegend items={[{ color: '#10B981', label: 'Tiket Ditangani' }]} />
+              <ChartLegend items={[{ color: '#D2F377', label: 'Tiket Ditangani' }]} />
             </div>
           </AnalyticsCard>
 

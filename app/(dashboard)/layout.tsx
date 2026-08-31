@@ -26,7 +26,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-lavender-50 to-purple-100">
+    <div className="min-h-screen bg-[#192A56]">
       <SidebarWrapper
         user={{
           full_name: profile.full_name,

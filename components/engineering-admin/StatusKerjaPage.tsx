@@ -16,6 +16,18 @@ import {
 } from 'lucide-react'
 import { forceCompleteTicket } from '@/actions/engineering'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface DailyLog {
   id: string
   ticket_id: string
@@ -44,7 +56,7 @@ export default function StatusKerjaPage() {
     setLoading(true)
     try {
       const r = await fetch('/api/engineering-admin/daily-logs')
-      const d = await r.json()
+      const d = await safeJson(r)
       if (d.logs) setLogs(d.logs)
     } catch (e) {
       console.error('Failed to fetch logs:', e)

@@ -193,7 +193,7 @@ export default function PrintTicketClient({ ticket }: { ticket: Ticket }) {
             {isMounted ? (
               <QRCodeSVG value={publicUrl} size={100} level="M" includeMargin={false} />
             ) : (
-              <div className="w-[100px] h-[100px] bg-slate-100 animate-pulse rounded" />
+              <div className="w-[100px] h-[100px] bg-[#192A56]/10 animate-pulse rounded" />
             )}
           </div>
           <p className="text-[9px] text-slate-500 mt-2 text-center">

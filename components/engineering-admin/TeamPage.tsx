@@ -5,6 +5,18 @@ import { motion } from 'framer-motion'
 import { Users, Loader2, RefreshCw, Mail, Briefcase, CheckCircle2, AlertCircle } from 'lucide-react'
 import Image from 'next/image'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Engineer {
   id: string
   full_name: string
@@ -33,8 +45,8 @@ export default function EngineeringAdminTeamPage() {
           fetch('/api/engineers'),
           fetch('/api/engineering-admin/tickets'),
         ])
-        const engData = await engRes.json()
-        const ticketData = await ticketRes.json()
+        const engData = await safeJson(engRes)
+        const ticketData = await safeJson(ticketRes)
         if (engData.engineers) setEngineers(engData.engineers)
         if (ticketData.tickets) setTickets(ticketData.tickets)
       } catch (e) {

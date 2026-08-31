@@ -17,6 +17,18 @@ import {
 import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboard/AnalyticsWidgets'
 import { DonutCard, ReminderCard } from '@/components/dashboard/RightWidgets'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -53,7 +65,7 @@ export default function RRDashboardClient({ userProfile }: { userProfile: UserPr
       setLoading(true)
       try {
         const response = await fetch('/api/rr/tickets')
-        const result = await response.json()
+        const result = await safeJson(response)
         if (result.tickets) {
           setTickets(result.tickets)
           setStats(result.stats || { total: 0, new: 0, inProgress: 0, completed: 0 })
@@ -109,9 +121,9 @@ export default function RRDashboardClient({ userProfile }: { userProfile: UserPr
 
   // Status distribution
   const statusDistribution = [
-    { label: 'Baru', value: stats.new, color: '#3B82F6' },
-    { label: 'Diproses', value: stats.inProgress, color: '#F59E0B' },
-    { label: 'Selesai', value: stats.completed, color: '#10B981' },
+    { label: 'Baru', value: stats.new, color: '#D2F377' },
+    { label: 'Diproses', value: stats.inProgress, color: '#FFEAA5' },
+    { label: 'Selesai', value: stats.completed, color: '#C5B4FC' },
   ]
 
   // KPI Stats
@@ -151,7 +163,7 @@ export default function RRDashboardClient({ userProfile }: { userProfile: UserPr
     >
       <WeeklyBarChart data={chartData} height={260} />
       <div className="mt-4">
-        <ChartLegend items={[{ color: '#10B981', label: 'Jumlah Komplain' }]} />
+        <ChartLegend items={[{ color: '#C5B4FC', label: 'Jumlah Komplain' }]} />
       </div>
     </AnalyticsCard>
   )

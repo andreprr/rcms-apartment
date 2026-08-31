@@ -4,6 +4,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { FileText, Download, Loader2, RefreshCw, Filter, Search, X } from 'lucide-react'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface HistoryEntry {
   id: string
   ticket_id: string
@@ -29,7 +41,7 @@ export default function EngineeringAdminHistoryPage() {
     setLoading(true)
     try {
       const r = await fetch('/api/engineering-admin/history')
-      const d = await r.json()
+      const d = await safeJson(r)
       setEntries(d.entries || [])
     } catch (e) {
       console.error('Failed to fetch history:', e)

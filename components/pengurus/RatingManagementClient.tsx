@@ -23,6 +23,18 @@ import {
 } from 'recharts'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface UserProfile {
   full_name: string
   division: string
@@ -51,9 +63,9 @@ interface RatingStats {
 }
 
 const COLORS = {
-  baik: '#10B981',
-  normal: '#F59E0B',
-  bad: '#EF4444',
+  baik: '#D2F377',
+  normal: '#FFEAA5',
+  bad: '#FFC2BD',
 }
 
 export default function RatingManagementClient({ userProfile }: { userProfile: UserProfile }) {
@@ -74,7 +86,7 @@ export default function RatingManagementClient({ userProfile }: { userProfile: U
       setLoading(true)
       try {
         const response = await fetch('/api/pengurus/ratings?visible=true')
-        const data = await response.json()
+        const data = await safeJson(response)
         if (data.ratings) setRatings(data.ratings)
         if (data.stats) setStats(data.stats)
       } catch (error) {

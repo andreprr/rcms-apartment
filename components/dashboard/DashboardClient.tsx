@@ -28,27 +28,28 @@ import { AnalyticsCard, WeeklyBarChart, ChartLegend } from '@/components/dashboa
 import { DonutCard } from '@/components/dashboard/RightWidgets'
 import type { UserRole } from '@/types/database'
 
-// Color Palette Modern
+// Luxury Palette
 const COLORS = {
-  primary: '#3B82F6',
-  success: '#10B981',
-  warning: '#F59E0B',
-  danger: '#EF4444',
-  info: '#6366F1',
-  purple: '#8B5CF6',
-  gray: '#6B7280',
+  primary: '#F7D794',
+  success: '#F7D794',
+  warning: '#EDA6A3',
+  danger: '#EDA6A3',
+  info: '#F7D794',
+  purple: '#F7D794',
+  gray: '#192A56',
+  charcoal: '#192A56',
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  NEW: '#3B82F6',
-  ACKNOWLEDGED: '#6366F1',
-  ASSIGNED: '#8B5CF6',
-  ON_PROGRESS: '#F59E0B',
-  WAITING_CONFIRMATION: '#EC4899',
-  COMPLETED: '#10B981',
-  REWORK: '#EF4444',
-  ON_HOLD: '#6B7280',
-  CANCELLED: '#9CA3AF',
+  NEW: '#F7D794',
+  ACKNOWLEDGED: '#F7D794',
+  ASSIGNED: '#F7D794',
+  ON_PROGRESS: '#EDA6A3',
+  WAITING_CONFIRMATION: '#EDA6A3',
+  COMPLETED: '#F7D794',
+  REWORK: '#EDA6A3',
+  ON_HOLD: '#192A56',
+  CANCELLED: '#192A56',
 }
 
 interface DashboardProps {
@@ -108,7 +109,7 @@ export default function DashboardClient({
     {
       title: 'Total Aduan',
       value: initialStats.total,
-      icon: <Ticket className="w-5 h-5 text-white" />,
+      icon: <Ticket className="w-5 h-5 text-[#F7D794]" />,
       variant: 'primary' as const,
       trend: { value: 12, isPositive: true }
     },
@@ -116,19 +117,19 @@ export default function DashboardClient({
       title: 'Selesai',
       value: initialStats.completed,
       subtitle: 'Tiket selesai',
-      icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+      icon: <CheckCircle2 className="w-5 h-5 text-[#192A56]" />
     },
     {
       title: 'Sedang Diproses',
       value: initialStats.onProgress,
       subtitle: 'On progress',
-      icon: <Layers className="w-5 h-5 text-amber-600" />
+      icon: <Layers className="w-5 h-5 text-[#192A56]" />
     },
     {
       title: 'Menunggu Konfirmasi',
       value: initialStats.waitingConfirmation,
       subtitle: 'Pending review',
-      icon: <Clock className="w-5 h-5 text-pink-600" />
+      icon: <Clock className="w-5 h-5 text-[#EDA6A3]" />
     }
   ]
 
@@ -144,19 +145,19 @@ export default function DashboardClient({
           <AreaChart data={trendData.slice(-14)}>
             <defs>
               <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                <stop offset="5%" stopColor="#F7D794" stopOpacity={0.5} />
+                <stop offset="95%" stopColor="#F7D794" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F7D79428" />
             <XAxis
               dataKey="date"
-              stroke="#94A3B8"
+              stroke="#192A56"
               fontSize={12}
               tickLine={false}
               tickFormatter={(value) => new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
             />
-            <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke="#192A56" fontSize={12} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={{
                 borderRadius: '12px',
@@ -167,7 +168,7 @@ export default function DashboardClient({
             <Area
               type="monotone"
               dataKey="total"
-              stroke="#3B82F6"
+              stroke="#F7D794"
               strokeWidth={2}
               fillOpacity={1}
               fill="url(#colorTotal)"
@@ -184,12 +185,12 @@ export default function DashboardClient({
       >
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={categoryData.slice(0, 5)} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-            <XAxis type="number" stroke="#94A3B8" fontSize={12} hide />
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F7D79428" />
+            <XAxis type="number" stroke="#192A56" fontSize={12} hide />
             <YAxis
               dataKey="category"
               type="category"
-              stroke="#64748B"
+              stroke="#192A56"
               fontSize={12}
               width={80}
               tickLine={false}
@@ -202,7 +203,7 @@ export default function DashboardClient({
                 boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
               }}
             />
-            <Bar dataKey="count" fill="#6366F1" radius={[0, 6, 6, 0]} barSize={20} />
+            <Bar dataKey="count" fill="#F7D794" radius={[0, 6, 6, 0]} barSize={20} />
           </BarChart>
         </ResponsiveContainer>
       </AnalyticsCard>
@@ -220,28 +221,28 @@ export default function DashboardClient({
       />
 
       {/* Workload Card */}
-      <div className="mt-6 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-50">
-          <h3 className="text-base font-semibold text-slate-800">Beban Kerja Teknisi</h3>
+      <div className="mt-6 bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#F7D794]/20">
+          <h3 className="text-base font-semibold text-[#192A56]">Beban Kerja Teknisi</h3>
         </div>
         <div className="p-5">
           <div className="space-y-4">
             {workloadData.slice(0, 4).map((item, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-semibold text-sm">
+                  <div className="w-8 h-8 rounded-lg bg-[#F7D794]/20 flex items-center justify-center text-[#192A56] font-semibold text-sm">
                     {item.engineer.charAt(0)}
                   </div>
-                  <span className="text-sm text-slate-700">{item.engineer}</span>
+                  <span className="text-sm text-[#192A56]/80">{item.engineer}</span>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <span className="text-sm font-semibold text-slate-800">{item.assigned}</span>
-                    <span className="text-xs text-slate-400 ml-1">assigned</span>
+                    <span className="text-sm font-semibold text-[#192A56]">{item.assigned}</span>
+                    <span className="text-xs text-[#192A56]/50 ml-1">assigned</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-sm font-semibold text-emerald-600">{item.completed}</span>
-                    <span className="text-xs text-slate-400 ml-1">done</span>
+                    <span className="text-sm font-semibold text-[#F7D794]">{item.completed}</span>
+                    <span className="text-xs text-[#192A56]/50 ml-1">done</span>
                   </div>
                 </div>
               </div>

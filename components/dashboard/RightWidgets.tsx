@@ -34,20 +34,20 @@ export function ReminderCard({
 }: ReminderCardProps) {
   const getPriorityColor = (priority?: string) => {
     switch (priority) {
-      case 'high': return 'text-rose-500 bg-rose-50'
-      case 'medium': return 'text-amber-500 bg-amber-50'
-      case 'low': return 'text-emerald-500 bg-emerald-50'
-      default: return 'text-slate-500 bg-slate-50'
+      case 'high': return 'text-[#EDA6A3] bg-[#EDA6A3]/15'
+      case 'medium': return 'text-[#F7D794] bg-[#F7D794]/15'
+      case 'low': return 'text-[#192A56] bg-[#F7D794]/20'
+      default: return 'text-[#192A56] bg-[#F7D794]/10'
     }
   }
 
   return (
-    <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 shadow-sm overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-50">
+      <div className="px-5 py-4 border-b border-[#F7D794]/20">
         <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4 text-blue-500" />
-          <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+          <Bell className="w-4 h-4 text-[#F7D794]" />
+          <h3 className="text-base font-semibold text-[#192A56]">{title}</h3>
         </div>
       </div>
 
@@ -55,8 +55,8 @@ export function ReminderCard({
       <div className="p-4">
         {items.length === 0 ? (
           <div className="text-center py-8">
-            <Calendar className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">{emptyText}</p>
+            <Calendar className="w-8 h-8 text-[#192A56]/30 mx-auto mb-2" />
+            <p className="text-sm text-[#192A56]/50">{emptyText}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -66,29 +66,29 @@ export function ReminderCard({
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                className="flex items-start gap-3 p-3 rounded-xl bg-[#F7D794]/5 hover:bg-[#F7D794]/10 transition-colors"
               >
                 {/* Time */}
                 <div className="flex flex-col items-center min-w-[48px]">
-                  <Clock className="w-3.5 h-3.5 text-slate-400 mb-1" />
-                  <span className="text-xs font-semibold text-slate-600">{item.time}</span>
+                  <Clock className="w-3.5 h-3.5 text-[#192A56]/40 mb-1" />
+                  <span className="text-xs font-semibold text-[#192A56]/70">{item.time}</span>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-slate-800 truncate">{item.label}</span>
+                    <span className="text-sm font-medium text-[#192A56] truncate">{item.label}</span>
                     {item.priority && (
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${getPriorityColor(item.priority)}`}>
                         {item.priority}
                       </span>
                     )}
                     {item.status === 'done' && (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <CheckCircle2 className="w-4 h-4 text-[#F7D794]" />
                     )}
                   </div>
                   {item.description && (
-                    <p className="text-xs text-slate-400 line-clamp-2">{item.description}</p>
+                    <p className="text-xs text-[#192A56]/50 line-clamp-2">{item.description}</p>
                   )}
 
                   {/* Action Buttons */}
@@ -100,8 +100,8 @@ export function ReminderCard({
                           onClick={a.onClick}
                           className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                             a.variant === 'primary'
-                              ? 'text-purple-600 bg-purple-50 hover:bg-purple-100'
-                              : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                              ? 'text-[#192A56] bg-[#F7D794] hover:bg-[#EDA6A3]'
+                              : 'text-[#192A56] bg-[#F7D794]/15 hover:bg-[#F7D794]/25'
                           }`}
                         >
                           {a.label}
@@ -112,7 +112,7 @@ export function ReminderCard({
                   ) : item.action ? (
                     <button
                       onClick={item.action.onClick}
-                      className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                      className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#192A56] bg-[#F7D794]/15 hover:bg-[#F7D794]/25 rounded-lg transition-colors"
                     >
                       {item.action.label}
                       <ArrowRight className="w-3 h-3" />
@@ -144,7 +144,7 @@ export function ProgressRing({
   subtitle,
   size = 120,
   strokeWidth = 12,
-  color = '#10B981'
+  color = '#F7D794'
 }: ProgressRingProps) {
   const radius = (size - strokeWidth) / 2
   const circumference = radius * 2 * Math.PI
@@ -159,7 +159,7 @@ export function ProgressRing({
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="#E2E8F0"
+            stroke="#F7D79428"
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -179,12 +179,12 @@ export function ProgressRing({
         </svg>
         {/* Center Value */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-slate-800">{value}%</span>
+          <span className="text-2xl font-bold text-[#192A56]">{value}%</span>
         </div>
       </div>
       <div className="text-center mt-3">
-        <p className="text-sm font-semibold text-slate-700">{label}</p>
-        {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
+        <p className="text-sm font-semibold text-[#192A56]">{label}</p>
+        {subtitle && <p className="text-xs text-[#192A56]/50">{subtitle}</p>}
       </div>
     </div>
   )
@@ -214,10 +214,10 @@ export function DonutCard({ title, segments, total, centerLabel, className = '' 
   let offset = 0
 
   return (
-    <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 shadow-sm overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-50">
-        <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+      <div className="px-5 py-4 border-b border-[#F7D794]/20">
+        <h3 className="text-base font-semibold text-[#192A56]">{title}</h3>
       </div>
 
       {/* Content */}
@@ -250,8 +250,8 @@ export function DonutCard({ title, segments, total, centerLabel, className = '' 
             </svg>
             {centerLabel && (
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-slate-800">{total}</span>
-                <span className="text-[10px] text-slate-400">{centerLabel}</span>
+                <span className="text-xl font-bold text-[#192A56]">{total}</span>
+                <span className="text-[10px] text-[#192A56]/50">{centerLabel}</span>
               </div>
             )}
           </div>
@@ -264,8 +264,8 @@ export function DonutCard({ title, segments, total, centerLabel, className = '' 
                   className="w-2.5 h-2.5 rounded-full"
                   style={{ backgroundColor: segment.color }}
                 />
-                <span className="text-xs text-slate-600">{segment.label}</span>
-                <span className="text-xs font-semibold text-slate-800 ml-auto">({segment.value})</span>
+                <span className="text-xs text-[#192A56]/70">{segment.label}</span>
+                <span className="text-xs font-semibold text-[#192A56] ml-auto">({segment.value})</span>
               </div>
             ))}
           </div>

@@ -36,6 +36,18 @@ import {
 } from 'recharts'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface UserProfile {
   full_name: string
   division: string
@@ -63,7 +75,7 @@ interface DashboardStats {
 
 type TimeFilter = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
-const COLORS = ['#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#6B7280']
+const COLORS = ['#D2F377', '#C5B4FC', '#FFC2BD', '#FFEAA5', '#0F0F0F']
 
 const ROLE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   ADMIN: Crown,
@@ -110,8 +122,8 @@ export default function PengurusDashboardClient({ userProfile }: { userProfile: 
           fetch('/api/pengurus/users')
         ])
 
-        const ticketsData = await ticketsRes.json()
-        const usersData = await usersRes.json()
+        const ticketsData = await safeJson(ticketsRes)
+        const usersData = await safeJson(usersRes)
 
         if (ticketsData.stats) setStats(ticketsData.stats)
         if (ticketsData.trend) setTrendData(ticketsData.trend)
@@ -126,10 +138,10 @@ export default function PengurusDashboardClient({ userProfile }: { userProfile: 
   }, [])
 
   const pieData = useMemo(() => [
-    { name: 'Selesai', value: stats.completed, color: '#10B981' },
-    { name: 'On Progress', value: stats.onProgress, color: '#F59E0B' },
-    { name: 'Waiting', value: stats.waitingConfirmation, color: '#8B5CF6' },
-    { name: 'Rework', value: stats.rework, color: '#EF4444' },
+    { name: 'Selesai', value: stats.completed, color: '#D2F377' },
+    { name: 'On Progress', value: stats.onProgress, color: '#FFEAA5' },
+    { name: 'Waiting', value: stats.waitingConfirmation, color: '#C5B4FC' },
+    { name: 'Rework', value: stats.rework, color: '#FFC2BD' },
     { name: 'Cancelled', value: stats.cancelled, color: '#6B7280' },
   ].filter(d => d.value > 0), [stats])
 
@@ -229,7 +241,7 @@ export default function PengurusDashboardClient({ userProfile }: { userProfile: 
                   <Bar dataKey="value" fill="url(#barGradient)" radius={[6, 6, 0, 0]} />
                   <defs>
                     <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="0%" stopColor="#C5B4FC" />
                       <stop offset="100%" stopColor="#A78BFA" />
                     </linearGradient>
                   </defs>

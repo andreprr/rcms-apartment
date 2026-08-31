@@ -51,7 +51,7 @@ export default function TaskoDashboard({
     <button
       key={i}
       onClick={action.onClick}
-      className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl transition-all"
+      className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#192A56] bg-[#FCFBFB] border border-[#F7D794]/40 hover:bg-[#F7D794]/10 hover:border-[#F7D794] rounded-xl transition-all"
     >
       {action.icon || <Filter className="w-4 h-4" />}
       {action.label}
@@ -63,7 +63,7 @@ export default function TaskoDashboard({
       <Link
         key="primary"
         href={actions.primary.href}
-        className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
+        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#F7D794] hover:bg-[#EDA6A3] text-[#192A56] text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
       >
         {actions.primary.icon || <Plus className="w-4 h-4" />}
         {actions.primary.label}
@@ -72,7 +72,7 @@ export default function TaskoDashboard({
       <button
         key="primary"
         onClick={actions.primary.onClick}
-        className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
+        className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#F7D794] hover:bg-[#EDA6A3] text-[#192A56] text-sm font-semibold rounded-xl transition-all shadow-sm hover:shadow-md"
       >
         {actions.primary.icon || <Plus className="w-4 h-4" />}
         {actions.primary.label}
@@ -84,7 +84,7 @@ export default function TaskoDashboard({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[#F7D794] animate-spin" />
       </div>
     )
   }
@@ -92,11 +92,11 @@ export default function TaskoDashboard({
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5">
+      <div className="bg-[#192A56] rounded-2xl border border-[#F7D794]/30 p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{pageTitle}</h1>
-            {pageSubtitle && <p className="text-sm text-slate-500 mt-0.5">{pageSubtitle}</p>}
+            <h1 className="text-2xl font-bold text-[#FCFBFB] tracking-tight">{pageTitle}</h1>
+            {pageSubtitle && <p className="text-sm text-[#F7D794]/80 mt-0.5">{pageSubtitle}</p>}
           </div>
           {actionButtons && actionButtons.length > 0 && (
             <div className="flex items-center gap-3">

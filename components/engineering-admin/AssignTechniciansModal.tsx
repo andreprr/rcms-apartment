@@ -6,6 +6,18 @@ import { assignTechnicians } from '@/actions/engineering'
 import { useTransition } from 'react'
 import { Loader2, X, UserCheck, Wrench, AlertCircle, Check } from 'lucide-react'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Technician {
   id: string
   full_name: string
@@ -57,7 +69,7 @@ export default function AssignTechniciansModal({
       async function fetchTechnicians() {
         try {
           const response = await fetch('/api/engineers')
-          const data = await response.json()
+          const data = await safeJson(response)
           if (data.engineers && isOpenRef.current) {
             setTechnicians(data.engineers)
             // Only reset selected IDs if modal is still open

@@ -12,13 +12,13 @@ interface AnalyticsCardProps {
 
 export function AnalyticsCard({ title, subtitle, children, className = '' }: AnalyticsCardProps) {
   return (
-    <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 shadow-sm overflow-hidden ${className}`}>
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-50">
+      <div className="px-5 py-4 border-b border-[#F7D794]/20">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-            {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+            <h3 className="text-base font-semibold text-[#192A56]">{title}</h3>
+            {subtitle && <p className="text-xs text-[#192A56]/50 mt-0.5">{subtitle}</p>}
           </div>
         </div>
       </div>
@@ -43,17 +43,17 @@ export function WeeklyBarChart({ data, height = 280 }: WeeklyBarChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} barCategoryGap="30%">
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F7D79428" />
         <XAxis
           dataKey="day"
           axisLine={false}
           tickLine={false}
-          tick={{ fill: '#94A3B8', fontSize: 12 }}
+          tick={{ fill: '#192A56', fontSize: 12 }}
         />
         <YAxis
           axisLine={false}
           tickLine={false}
-          tick={{ fill: '#94A3B8', fontSize: 12 }}
+          tick={{ fill: '#192A56', fontSize: 12 }}
         />
         <Tooltip
           contentStyle={{
@@ -71,8 +71,8 @@ export function WeeklyBarChart({ data, height = 280 }: WeeklyBarChartProps) {
         />
         <defs>
           <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10B981" />
-            <stop offset="100%" stopColor="#059669" />
+            <stop offset="0%" stopColor="#F7D794" />
+            <stop offset="100%" stopColor="#EDA6A3" />
           </linearGradient>
         </defs>
       </BarChart>
@@ -94,7 +94,7 @@ export function ChartLegend({ items }: ChartLegendProps) {
       {items.map((item, index) => (
         <div key={index} className="flex items-center gap-2">
           <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: item.color }} />
-          <span className="text-xs text-slate-500">{item.label}</span>
+          <span className="text-xs text-[#192A56]/70">{item.label}</span>
         </div>
       ))}
     </div>

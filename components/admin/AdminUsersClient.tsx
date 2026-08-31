@@ -19,6 +19,18 @@ import {
 } from 'lucide-react'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface User {
   id: string
   auth_user_id: string
@@ -97,7 +109,7 @@ export default function AdminUsersClient({
         setSuccess('Perubahan user berhasil disimpan')
         setEditingUser(null)
       } else {
-        const result = await response.json()
+        const result = await safeJson(response)
         setError(result.error || 'Gagal menyimpan perubahan')
       }
     } catch (err: any) {
@@ -119,7 +131,7 @@ export default function AdminUsersClient({
         body: JSON.stringify(formData),
       })
 
-      const result = await response.json()
+      const result = await safeJson(response)
 
       if (!response.ok || result.error) {
         setError(result.error || 'Terjadi kesalahan')

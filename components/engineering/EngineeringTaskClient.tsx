@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   Ticket,
   Loader2,
@@ -27,6 +28,22 @@ import {
   rescheduleTicket,
   submitInvestigation,
 } from '@/actions/tickets'
+
+// ============================================================================
+// SAFE JSON PARSING
+// Mencegah crash "Unexpected end of JSON input" saat response kosong/rustak.
+// ============================================================================
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
 
 // ============================================================================
 // CLIENT-SIDE IMAGE COMPRESSION
@@ -168,7 +185,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
       setLoading(true)
       try {
         const response = await fetch('/api/engineering/my-tickets')
-        const data = await response.json()
+        const data = await safeJson(response)
         if (data.tickets) {
           setTickets(data.tickets)
           if (initialTicketId) {
@@ -191,7 +208,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
     if (!selectedTicket) return
     let active = true
     fetch(`/api/engineering/daily-logs?ticket_id=${selectedTicket.id}`)
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => { if (active && d.logs) setDailyLogs(d.logs) })
       .catch(() => {})
     return () => { active = false }
@@ -245,7 +262,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
   async function fetchTicketPhotos(ticketId: string) {
     try {
       const response = await fetch(`/api/tickets/${ticketId}/photos`)
-      const data = await response.json()
+      const data = await safeJson(response)
       if (data.photos) {
         setPhotoUrls(data.photos.map((p: any) => ({
           id: p.id,
@@ -285,8 +302,18 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      <div className="p-6">
+        <div className="bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 p-5 shadow-sm animate-pulse">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#192A56]/10 border-2 border-[#F7D794]/20" />
+            <div className="flex-1 space-y-3">
+              <div className="h-6 w-48 rounded-lg bg-[#192A56]/10" />
+              <div className="h-4 w-72 max-w-full rounded-md bg-[#192A56]/5" />
+              <div className="inline-flex h-6 w-24 rounded-full bg-[#192A56]/10" />
+            </div>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F7D794]" /></div>
       </div>
     )
   }
@@ -296,12 +323,35 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl border border-purple-100 p-5 shadow-sm"
+        className="bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 p-5 shadow-sm"
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Task Management</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Kelola dan kerjakan tiket perbaikan Anda, {userProfile?.full_name || 'Teknisi'}.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center text-2xl font-extrabold shadow-sm overflow-hidden border-2 border-primary/20 ${
+              userProfile?.avatar_url
+                ? 'bg-purple-100'
+                : 'bg-gradient-to-br from-purple-200 to-purple-300 text-purple-700'
+            }`}>
+              {userProfile?.avatar_url ? (
+                <Image
+                  src={userProfile.avatar_url}
+                  alt={userProfile.full_name}
+                  width={96}
+                  height={96}
+                  unoptimized
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover"
+                />
+              ) : (
+                (userProfile?.full_name || 'T').charAt(0).toUpperCase()
+              )}
+            </div>
+            <div>
+              <h1 className="text-xl font-extrabold tracking-tight text-slate-800">Task Management</h1>
+              <p className="text-sm text-slate-500 mt-0.5">Kelola dan kerjakan tiket perbaikan Anda, {userProfile?.full_name || 'Teknisi'}.</p>
+              <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                {userProfile?.division || userProfile?.role}
+              </span>
+            </div>
           </div>
           <Link
             href="/engineering"
@@ -365,7 +415,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
                           {badge.label}
                         </span>
                         {(ticket.is_rework || (ticket.rework_count ?? 0) > 0) && (
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white animate-pulse">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EDA6A3] text-[#192A56] animate-pulse">
                             ⚠️ Dikerjakan Ulang (Rework)
                           </span>
                         )}
@@ -409,7 +459,7 @@ function TaskPageContent({ userProfile }: { userProfile: UserProfile }) {
                           </button>
                           <button
                             onClick={() => openReschedule(ticket)}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#F7D794] hover:bg-[#EDA6A3] text-[#192A56] text-sm font-semibold rounded-xl transition-colors"
                           >
                             <Calendar className="w-4 h-4" />
                             Reschedule
@@ -696,7 +746,7 @@ function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
         body: formData,
       })
 
-      const result = await response.json()
+      const result = await safeJson(response)
 
       if (!response.ok || result.error) {
         setError(result.error || 'Terjadi kesalahan')
@@ -750,7 +800,7 @@ function WorkModal({ ticket, dailyLogs, onClose, onSuccess }: WorkModalProps) {
         body: formData,
       })
 
-      const result = await response.json()
+      const result = await safeJson(response)
 
       if (!response.ok || result.error) {
         setError(result.error || 'Terjadi kesalahan')
@@ -1032,7 +1082,7 @@ function RescheduleModal({ ticket, onClose, onSuccess }: { ticket: Ticket; onClo
           </div>
           <div className="flex gap-3 pt-2">
             <button onClick={onClose} disabled={isPending} className="flex-1 px-4 py-3 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-colors">Batal</button>
-            <button onClick={handleSubmit} disabled={isPending} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50">
+            <button onClick={handleSubmit} disabled={isPending} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#F7D794] hover:bg-[#EDA6A3] text-[#192A56] font-semibold rounded-xl transition-colors disabled:opacity-50">
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
               Ajukan Reschedule
             </button>
@@ -1124,7 +1174,7 @@ export default function EngineeringTaskClient({ userProfile }: { userProfile: Us
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F7D794]"></div>
       </div>
     }>
       <TaskPageContent userProfile={userProfile} />

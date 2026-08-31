@@ -18,6 +18,18 @@ import { WeeklyBarChart, ChartLegend, AnalyticsCard } from '@/components/dashboa
 import { ReminderCard, DonutCard, ProgressRing } from '@/components/dashboard/RightWidgets'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -55,7 +67,7 @@ export default function Dashboard({ userProfile }: DashboardProps) {
       try {
         // Fetch from RR tickets API (management can view all)
         const response = await fetch('/api/rr/tickets')
-        const result = await response.json()
+        const result = await safeJson(response)
 
         if (result.stats) {
           setStats({
@@ -175,7 +187,7 @@ export default function Dashboard({ userProfile }: DashboardProps) {
           value={Math.round((stats.completed / (stats.total || 1)) * 100)}
           label="Tingkat Penyelesaian"
           subtitle="Secara keseluruhan"
-          color="#10B981"
+          color="#D2F377"
         />
       </div>
     </div>

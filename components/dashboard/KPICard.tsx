@@ -32,38 +32,38 @@ export default function KPICard({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 p-5 text-white shadow-lg shadow-blue-500/20 ${className}`}
+        className={`relative overflow-hidden rounded-2xl bg-[#192A56] text-[#FCFBFB] p-5 shadow-lg shadow-[#192A56]/20 ${className}`}
       >
         {/* Background Pattern */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#F7D794]/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-[#F7D794]/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
         <div className="relative">
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
-            <span className="text-blue-100 text-sm font-medium">{title}</span>
+            <span className="text-[#F7D794] text-sm font-medium">{title}</span>
             {icon && (
-              <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-[#F7D794]/10 backdrop-blur-sm flex items-center justify-center">
                 {icon}
               </div>
             )}
           </div>
 
           {/* Value */}
-          <p className="text-3xl font-bold mb-1">{value}</p>
+          <p className="text-3xl font-bold mb-1 text-[#FCFBFB]">{value}</p>
 
           {/* Trend */}
           {trend && (
             <div className="flex items-center gap-1.5">
               {trend.isPositive ? (
-                <ArrowUpRight className="w-4 h-4 text-emerald-300" />
+                <ArrowUpRight className="w-4 h-4 text-[#F7D794]" />
               ) : (
-                <ArrowDownRight className="w-4 h-4 text-rose-300" />
+                <ArrowDownRight className="w-4 h-4 text-[#EDA6A3]" />
               )}
-              <span className={`text-sm font-medium ${trend.isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
+              <span className={`text-sm font-medium ${trend.isPositive ? 'text-[#F7D794]' : 'text-[#EDA6A3]'}`}>
                 {trend.value}%
               </span>
-              <span className="text-blue-200 text-sm">from last month</span>
+              <span className="text-[#FCFBFB]/60 text-sm">from last month</span>
             </div>
           )}
         </div>
@@ -75,28 +75,28 @@ export default function KPICard({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative rounded-2xl bg-white border border-slate-100 p-5 shadow-sm hover:shadow-md hover:border-slate-200 transition-all ${className}`}
+      className={`relative rounded-2xl bg-[#FCFBFB] border border-[#F7D794]/20 p-5 shadow-sm hover:shadow-md hover:border-[#F7D794]/40 transition-all ${className}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-slate-500 text-sm font-medium">{title}</span>
+        <span className="text-[#192A56]/70 text-sm font-medium">{title}</span>
         {icon && (
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-[#F7D794]/20 flex items-center justify-center">
             {icon}
           </div>
         )}
       </div>
 
       {/* Value */}
-      <p className="text-2xl font-bold text-slate-800 mb-1">{value}</p>
+      <p className="text-2xl font-bold text-[#192A56] mb-1">{value}</p>
 
       {/* Subtitle / Trend */}
       <div className="flex items-center justify-between">
         {subtitle && (
-          <span className="text-slate-400 text-xs">{subtitle}</span>
+          <span className="text-[#192A56]/50 text-xs">{subtitle}</span>
         )}
         {trend && (
-          <div className={`flex items-center gap-1 ${trend.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+          <div className={`flex items-center gap-1 ${trend.isPositive ? 'text-[#192A56]' : 'text-[#EDA6A3]'}`}>
             {trend.isPositive ? (
               <TrendingUp className="w-4 h-4" />
             ) : (

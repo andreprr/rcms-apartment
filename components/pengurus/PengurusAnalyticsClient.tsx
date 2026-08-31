@@ -37,6 +37,18 @@ import {
 } from 'recharts'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface UserProfile {
   full_name: string
   division: string
@@ -61,7 +73,7 @@ interface TechnicianPerformance {
   avgRating: number
 }
 
-const COLORS = ['#8B5CF6', '#10B981', '#F59E0B', '#3B82F6', '#EC4899']
+const COLORS = ['#D2F377', '#C5B4FC', '#FFC2BD', '#FFEAA5', '#0F0F0F']
 
 const ROLE_CONFIG: Record<string, {
   label: string
@@ -140,9 +152,9 @@ export default function PengurusAnalyticsClient({ userProfile }: { userProfile: 
           fetch('/api/pengurus/stats')
         ])
 
-        const usersData = await usersRes.json()
-        const ratingsData = await ratingsRes.json()
-        const statsData = await statsRes.json()
+        const usersData = await safeJson(usersRes)
+        const ratingsData = await safeJson(ratingsRes)
+        const statsData = await safeJson(statsRes)
 
         if (usersData.users) setUsers(usersData.users)
         if (ratingsData.technicians) setTechnicians(ratingsData.technicians)
@@ -301,8 +313,8 @@ export default function PengurusAnalyticsClient({ userProfile }: { userProfile: 
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94A3B8', fontSize: 12 }} />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Line type="monotone" dataKey="tickets" stroke="#8B5CF6" strokeWidth={2} name="Dibuat" />
-                <Line type="monotone" dataKey="completed" stroke="#10B981" strokeWidth={2} name="Selesai" />
+                <Line type="monotone" dataKey="tickets" stroke="#C5B4FC" strokeWidth={2} name="Dibuat" />
+                <Line type="monotone" dataKey="completed" stroke="#D2F377" strokeWidth={2} name="Selesai" />
               </LineChart>
             </ResponsiveContainer>
           </div>

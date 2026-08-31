@@ -22,6 +22,18 @@ import {
 import AssignTechniciansModal from '@/components/engineering-admin/AssignTechniciansModal'
 import { startProgress, saveAnalysis } from '@/actions/tickets'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -206,7 +218,7 @@ export default function EngineeringAdminTaskPage({ engineers }: { engineers: Eng
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticket_id: ticket.id, status: 'WAITING_CLIENT_CONFIRMATION' }),
       })
-      const d = await r.json()
+      const d = await safeJson(r)
       if (d.error) {
         console.error(d.error)
       } else if (d.waLink) {
@@ -226,7 +238,7 @@ export default function EngineeringAdminTaskPage({ engineers }: { engineers: Eng
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticket_id: ticket.id, status: 'INVESTIGATION' }),
       })
-      const d = await r.json()
+      const d = await safeJson(r)
       if (d.error) {
         console.error(d.error)
       }
@@ -240,7 +252,7 @@ export default function EngineeringAdminTaskPage({ engineers }: { engineers: Eng
     if (!silent) setLoading(true)
     try {
       const r = await fetch('/api/engineering-admin/tickets')
-      const d = await r.json()
+      const d = await safeJson(r)
       if (d.tickets) setTickets(d.tickets)
     } catch (err) {
       console.error('Failed to fetch tickets:', err)
@@ -252,7 +264,7 @@ export default function EngineeringAdminTaskPage({ engineers }: { engineers: Eng
   useEffect(() => {
     let active = true
     fetch('/api/engineering-admin/tickets')
-      .then(r => r.json())
+      .then(r => safeJson(r))
       .then(d => { if (active && d.tickets) setTickets(d.tickets) })
       .catch(() => {})
       .finally(() => { if (active) setLoading(false) })
@@ -269,7 +281,7 @@ export default function EngineeringAdminTaskPage({ engineers }: { engineers: Eng
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticket_id: ticket.id, status }),
       })
-      const d = await r.json()
+      const d = await safeJson(r)
       if (d.error) console.error(d.error)
       await fetchTickets(true)
     } finally { setTransitioning(false) }

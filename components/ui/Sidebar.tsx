@@ -57,63 +57,49 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
   const isExecutive = EXECUTIVE_ROLES.includes(user.role)
 
   return (
-    <aside className="w-64 bg-gradient-to-br from-slate-50 via-purple-50 to-lavender-50 flex flex-col h-screen fixed left-0 top-0 border-r border-purple-200/40 shadow-lg">
+    <aside className="w-64 bg-[#192A56] flex flex-col h-screen fixed left-0 top-0 border-r border-[#F7D794]/20 shadow-lg">
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-purple-200/40 bg-white/60 backdrop-blur-md">
+      <div className="h-16 flex items-center px-6 border-b border-[#F7D794]/20 bg-[#192A56]">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
-            isExecutive
-              ? 'bg-gradient-to-br from-amber-500 to-amber-600'
-              : 'bg-gradient-to-br from-purple-500 to-purple-600'
-          }`}>
-            <span className="text-white font-bold text-sm">RC</span>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md bg-[#F7D794]">
+            <span className="text-[#192A56] font-bold text-sm">RC</span>
           </div>
-          <span className="font-bold text-slate-800 tracking-tight">RCMS</span>
+          <span className="font-bold text-[#FCFBFB] tracking-tight">RCMS</span>
         </div>
       </div>
 
       {/* User Profile */}
-      <div className={`px-4 py-5 backdrop-blur-sm border-b border-purple-200/40 ${
-        isExecutive ? 'bg-gradient-to-r from-amber-50/50 to-yellow-50/50' : 'bg-white/50'
-      }`}>
-        <div className={`flex items-center gap-3 p-3 rounded-2xl shadow-sm ${
-          isExecutive
-            ? 'bg-gradient-to-r from-amber-100/80 to-yellow-100/80 border-2 border-amber-300/60'
-            : 'bg-white/80 border border-purple-100/60'
-        }`}>
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg shadow-sm overflow-hidden ${
-            isExecutive
-              ? 'bg-gradient-to-br from-amber-200 to-amber-300 text-amber-700 font-bold'
-              : 'bg-gradient-to-br from-purple-200 to-purple-300 text-purple-700 font-bold'
-          }`}>
+      <div className="px-4 py-5 bg-[#192A56] border-b border-[#F7D794]/20">
+        <div className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-[#192A56] border border-[#F7D794]/30">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl flex items-center justify-center text-4xl font-extrabold shadow-sm overflow-hidden border-2 border-[#F7D794]/40 bg-[#F7D794] text-[#192A56]">
             {user.avatar_url ? (
               <Image
                 src={user.avatar_url}
                 alt={user.full_name}
-                width={48}
-                height={48}
+                width={112}
+                height={112}
                 unoptimized
-                className="w-12 h-12 rounded-xl object-cover"
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover"
               />
             ) : (
               user.full_name.charAt(0).toUpperCase()
             )}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="font-semibold text-slate-800 truncate">{user.full_name}</p>
-              {isExecutive && <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-100" />}
+          <div className="flex-1 min-w-0 w-full text-center">
+            <div className="flex items-center justify-center gap-1.5">
+              <p className="text-xl font-extrabold tracking-tight text-[#FCFBFB] truncate">{user.full_name}</p>
+              {isExecutive && <Crown className="w-4 h-4 text-[#F7D794]" />}
             </div>
-            <p className={`text-xs font-medium ${isExecutive ? 'text-amber-600' : 'text-purple-600'}`}>
-              {user.division}
-            </p>
+            <span className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#F7D794]/10 text-[#F7D794] border border-[#F7D794]/30">
+              {user.division || user.role}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Navigation - Role Menu */}
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
-        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-3">
+        <div className="text-xs font-bold text-[#F7D794]/70 uppercase tracking-wider mb-3 px-3">
           Menu
         </div>
         {navItems.map((item) => {
@@ -126,15 +112,12 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
               href={item.href}
               className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-1 ${
                 isActive
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white shadow-lg shadow-purple-200/50'
-                  : 'text-slate-600 hover:bg-white/60 hover:text-slate-800'
+                  ? 'bg-[#F7D794] text-[#192A56] font-medium shadow-lg shadow-[#192A56]/40'
+                  : 'text-[#FCFBFB] hover:bg-[#F7D794]/10 hover:text-[#F7D794]'
               }`}
             >
-              {isActive && (
-                <div className="absolute inset-0 rounded-xl bg-purple-400/20 blur-md -z-10" />
-              )}
               <Icon className={`w-5 h-5 ${
-                isActive ? 'text-white' : 'text-slate-400'
+                isActive ? 'text-[#192A56]' : 'text-[#F7D794]/70'
               }`} />
               <span className="font-medium text-sm flex-1">{item.name}</span>
               {isActive && <ChevronRight className="w-4 h-4" />}
@@ -143,8 +126,8 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
         })}
 
         {/* GENERAL Section */}
-        <div className="mt-6 pt-4 border-t border-purple-200/40">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-3">
+        <div className="mt-6 pt-4 border-t border-[#F7D794]/20">
+          <div className="text-xs font-bold text-[#F7D794]/70 uppercase tracking-wider mb-3 px-3">
             General
           </div>
 
@@ -153,8 +136,8 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
             href="/settings"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-1 ${
               pathname === '/settings'
-                ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white shadow-lg'
-                : 'text-slate-600 hover:bg-white/60 hover:text-slate-800'
+                ? 'bg-[#F7D794] text-[#192A56] font-medium shadow-lg'
+                : 'text-[#FCFBFB] hover:bg-[#F7D794]/10 hover:text-[#F7D794]'
             }`}
           >
             <Settings className="w-5 h-5" />
@@ -166,8 +149,8 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
             href="/help"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-1 ${
               pathname === '/help'
-                ? 'bg-gradient-to-r from-purple-600 to-purple-500 text-white shadow-lg'
-                : 'text-slate-600 hover:bg-white/60 hover:text-slate-800'
+                ? 'bg-[#F7D794] text-[#192A56] font-medium shadow-lg'
+                : 'text-[#FCFBFB] hover:bg-[#F7D794]/10 hover:text-[#F7D794]'
             }`}
           >
             <HelpCircle className="w-5 h-5" />
@@ -177,7 +160,7 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
           {/* Logout */}
           <button
             onClick={onLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#FCFBFB] hover:bg-[#EDA6A3]/20 hover:text-[#EDA6A3] transition-all"
           >
             <LogOut className="w-5 h-5" />
             <span className="font-medium text-sm">Logout</span>
@@ -186,14 +169,14 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
       </nav>
 
       {/* Footer Logo */}
-      <div className="px-4 py-4 border-t border-purple-200/40 bg-white/40 backdrop-blur-sm">
+      <div className="px-4 py-4 border-t border-[#F7D794]/20 bg-[#192A56]">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white/80 shadow-sm flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-[#F7D794]/10 border border-[#F7D794]/30 flex items-center justify-center">
             <Image src="/logo.png" alt="Gateway Logo" width={32} height={32} className="w-8 h-8 object-contain" />
           </div>
           <div className="text-xs">
-            <p className="font-medium text-slate-600">Gateway System</p>
-            <p className="text-slate-400">v3.2</p>
+            <p className="font-medium text-[#FCFBFB]">Gateway System</p>
+            <p className="text-[#F7D794]/60">v3.2</p>
           </div>
         </div>
       </div>

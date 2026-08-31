@@ -19,6 +19,18 @@ import { WeeklyBarChart, ChartLegend } from '@/components/dashboard/AnalyticsWid
 import { ReminderCard, DonutCard } from '@/components/dashboard/RightWidgets'
 import type { UserRole } from '@/types/database'
 
+async function safeJson(res: Response) {
+  const type = res.headers.get('content-type') || ''
+  if (!type.includes('application/json')) return {}
+  const text = await res.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
+}
+
 interface Ticket {
   id: string
   ticket_number: string
@@ -74,7 +86,7 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
       setLoading(true)
       try {
         const response = await fetch('/api/engineering/my-tickets')
-        const data = await response.json()
+        const data = await safeJson(response)
         if (data.tickets) {
           setTickets(data.tickets)
         }
@@ -125,10 +137,10 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
 
   // Status distribution for donut chart
   const statusDistribution = [
-    { label: 'Ditugaskan', value: tickets.filter(t => t.status === 'ASSIGNED').length, color: '#6366F1' },
-    { label: 'Diproses', value: stats.onProgress, color: '#F59E0B' },
-    { label: 'Menunggu Konfirmasi', value: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length, color: '#8B5CF6' },
-    { label: 'Selesai', value: stats.completed, color: '#10B981' },
+    { label: 'Ditugaskan', value: tickets.filter(t => t.status === 'ASSIGNED').length, color: '#F7D794' },
+    { label: 'Diproses', value: stats.onProgress, color: '#EDA6A3' },
+    { label: 'Menunggu Konfirmasi', value: tickets.filter(t => t.status === 'WAITING_CONFIRMATION').length, color: '#192A56' },
+    { label: 'Selesai', value: stats.completed, color: '#F7D794' },
   ].filter(s => s.value > 0)
 
   // KPI Stats
@@ -136,7 +148,7 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
     {
       title: 'Total Ditangani',
       value: stats.total,
-      icon: <Ticket className="w-5 h-5 text-white" />,
+      icon: <Ticket className="w-5 h-5 text-[#F7D794]" />,
       variant: 'primary' as const,
       trend: { value: 8, isPositive: true }
     },
@@ -144,19 +156,19 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
       title: 'Sedang Dikerjakan',
       value: stats.onProgress,
       subtitle: 'On Progress',
-      icon: <Wrench className="w-5 h-5 text-amber-600" />
+      icon: <Wrench className="w-5 h-5 text-[#192A56]" />
     },
     {
       title: 'Selesai',
       value: stats.completed,
       subtitle: 'Completed',
-      icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+      icon: <CheckCircle2 className="w-5 h-5 text-[#192A56]" />
     },
     {
       title: 'Dibatalkan',
       value: stats.cancelled,
       subtitle: 'Cancelled',
-      icon: <XCircle className="w-5 h-5 text-red-500" />
+      icon: <XCircle className="w-5 h-5 text-[#EDA6A3]" />
     }
   ]
 
@@ -164,7 +176,7 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F7D794]"></div>
       </div>
     )
   }
@@ -175,18 +187,18 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl border border-purple-100 p-5 shadow-sm"
+        className="bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 p-5 shadow-sm"
       >
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Teknisi</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-2xl font-bold text-[#192A56] tracking-tight">Dashboard Teknisi</h1>
+            <p className="text-sm text-[#192A56]/50 mt-0.5">
               Selamat datang, {safeUserProfile.full_name}! Berikut ringkasan tugas Anda.
             </p>
           </div>
           <Link
             href="/engineering/task"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#F7D794] hover:bg-[#EDA6A3] text-[#192A56] text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all"
           >
             <Play className="w-4 h-4" />
             Mulai Bekerja
@@ -203,40 +215,40 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
             className={stat.variant === 'primary'
-              ? 'relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-600 via-purple-500 to-indigo-600 p-5 text-white shadow-lg'
-              : 'bg-white rounded-2xl border border-purple-100 p-5 shadow-sm'
+              ? 'relative overflow-hidden rounded-2xl bg-[#192A56] p-5 text-[#FCFBFB] shadow-lg shadow-[#192A56]/20'
+              : 'bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 p-5 shadow-sm'
             }
           >
             {stat.variant === 'primary' && (
               <>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#F7D794]/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-[#F7D794]/5 rounded-full translate-y-1/2 -translate-x-1/2" />
               </>
             )}
             <div className="relative">
               <div className="flex items-center justify-between mb-3">
-                <span className={`text-sm font-medium ${stat.variant === 'primary' ? 'text-purple-100' : 'text-slate-500'}`}>
+                <span className={`text-sm font-medium ${stat.variant === 'primary' ? 'text-[#F7D794]' : 'text-[#192A56]/70'}`}>
                   {stat.title}
                 </span>
                 {stat.icon && (
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    stat.variant === 'primary' ? 'bg-white/20' : 'bg-slate-50'
+                    stat.variant === 'primary' ? 'bg-[#F7D794]/10' : 'bg-[#F7D794]/20'
                   }`}>
                     {stat.icon}
                   </div>
                 )}
               </div>
-              <p className={`text-3xl font-bold ${stat.variant === 'primary' ? 'text-white' : 'text-slate-800'}`}>
+              <p className={`text-3xl font-bold ${stat.variant === 'primary' ? 'text-[#FCFBFB]' : 'text-[#192A56]'}`}>
                 {stat.value}
               </p>
               {stat.subtitle && (
-                <p className={`text-xs mt-1 ${stat.variant === 'primary' ? 'text-purple-200' : 'text-slate-400'}`}>
+                <p className={`text-xs mt-1 ${stat.variant === 'primary' ? 'text-[#F7D794]' : 'text-[#192A56]/50'}`}>
                   {stat.subtitle}
                 </p>
               )}
               {stat.trend && (
                 <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${
-                  stat.variant === 'primary' ? 'text-purple-200' : stat.trend.isPositive ? 'text-emerald-600' : 'text-red-600'
+                  stat.variant === 'primary' ? 'text-[#F7D794]' : stat.trend.isPositive ? 'text-[#192A56]' : 'text-[#EDA6A3]'
                 }`}>
                   {stat.trend.isPositive ? '↑' : '↓'} {stat.trend.value}% dari bulan lalu
                 </div>
@@ -253,16 +265,16 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="lg:col-span-2 bg-white rounded-2xl border border-purple-100 shadow-sm overflow-hidden"
+          className="lg:col-span-2 bg-[#FCFBFB] rounded-2xl border border-[#F7D794]/20 shadow-sm overflow-hidden"
         >
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h3 className="text-base font-semibold text-slate-800">Distribusi Penugasan Harian</h3>
-            <p className="text-xs text-slate-400">Jumlah tiket yang ditugaskan per hari</p>
+          <div className="px-5 py-4 border-b border-[#F7D794]/20">
+            <h3 className="text-base font-semibold text-[#192A56]">Distribusi Penugasan Harian</h3>
+            <p className="text-xs text-[#192A56]/50">Jumlah tiket yang ditugaskan per hari</p>
           </div>
           <div className="p-5">
             <WeeklyBarChart data={chartData} height={260} />
             <div className="mt-4">
-              <ChartLegend items={[{ color: '#10B981', label: 'Jumlah Tiket' }]} />
+              <ChartLegend items={[{ color: '#F7D794', label: 'Jumlah Tiket' }]} />
             </div>
           </div>
         </motion.div>
@@ -294,23 +306,23 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-5 shadow-lg"
+          className="bg-[#192A56] rounded-2xl p-5 shadow-lg"
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-[#F7D794]/20 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-[#F7D794]" />
               </div>
               <div>
-                <p className="text-white font-semibold">Tiket Menunggu Diproses</p>
-                <p className="text-purple-200 text-sm">
+                <p className="text-[#FCFBFB] font-semibold">Tiket Menunggu Diproses</p>
+                <p className="text-[#F7D794]/80 text-sm">
                   {tickets.filter(t => t.status === 'ASSIGNED').length} tiket belum dimulai
                 </p>
               </div>
             </div>
             <Link
               href="/engineering/task"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-purple-600 text-sm font-semibold rounded-xl hover:bg-purple-50 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#F7D794] text-[#192A56] text-sm font-semibold rounded-xl hover:bg-[#EDA6A3] transition-colors"
             >
               <Play className="w-4 h-4" />
               Buka Lembar Kerja
@@ -327,9 +339,9 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
         className="grid grid-cols-2 sm:grid-cols-3 gap-4"
       >
         {[
-          { href: '/engineering/task', label: 'Task', icon: Ticket, gradient: 'from-purple-500 to-purple-600' },
-          { href: '/engineering/performance', label: 'Performance', icon: TrendingUp, gradient: 'from-emerald-500 to-emerald-600' },
-          { href: '/settings', label: 'Settings', icon: Calendar, gradient: 'from-indigo-500 to-indigo-600' },
+          { href: '/engineering/task', label: 'Task', icon: Ticket, gradient: 'from-[#192A56] to-[#24366b]' },
+          { href: '/engineering/performance', label: 'Performance', icon: TrendingUp, gradient: 'from-[#F7D794] to-[#EDA6A3]' },
+          { href: '/settings', label: 'Settings', icon: Calendar, gradient: 'from-[#192A56] to-[#24366b]' },
         ].map((item) => {
           const Icon = item.icon
           return (
@@ -338,10 +350,10 @@ export default function EngineeringDashboardClient({ userProfile }: { userProfil
               href={item.href}
               className={`block p-4 bg-gradient-to-r ${item.gradient} rounded-2xl shadow-md hover:shadow-lg transition-all group`}
             >
-              <Icon className="w-6 h-6 text-white mb-2" />
+              <Icon className={`w-6 h-6 mb-2 ${item.gradient.includes('F7D794') ? 'text-[#192A56]' : 'text-[#F7D794]'}`} />
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-white">{item.label}</span>
-                <ArrowRight className="w-4 h-4 text-white/70 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                <span className={`text-sm font-semibold ${item.gradient.includes('F7D794') ? 'text-[#192A56]' : 'text-[#FCFBFB]'}`}>{item.label}</span>
+                <ArrowRight className={`w-4 h-4 ${item.gradient.includes('F7D794') ? 'text-[#192A56]/70 group-hover:text-[#192A56]' : 'text-[#F7D794]/70 group-hover:text-[#F7D794]'} group-hover:translate-x-1 transition-all`} />
               </div>
             </Link>
           )

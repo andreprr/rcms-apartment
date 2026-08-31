@@ -49,18 +49,18 @@ export default function EngineeringAdminDashboard({
   ]
 
   const donutData = [
-    { label: 'Baru', value: stats.new, color: '#3B82F6' },
-    { label: 'Ditugaskan', value: stats.assigned, color: '#8B5CF6' },
-    { label: 'Diproses', value: stats.inProgress, color: '#F59E0B' },
+    { label: 'Baru', value: stats.new, color: '#D2F377' },
+    { label: 'Ditugaskan', value: stats.assigned, color: '#C5B4FC' },
+    { label: 'Diproses', value: stats.inProgress, color: '#FFEAA5' },
     { label: 'Pending', value: stats.waitingConfirmation, color: '#EC4899' },
-    { label: 'Selesai', value: stats.completed, color: '#10B981' },
+    { label: 'Selesai', value: stats.completed, color: '#D2F377' },
   ].filter(d => d.value > 0)
 
   const leftContent = (
     <AnalyticsCard title="Statistik Mingguan" subtitle="Aktivitas tiket per hari">
       <WeeklyBarChart data={chartData} height={260} />
       <div className="mt-4 flex items-center justify-between">
-        <ChartLegend items={[{ color: '#10B981', label: 'Tiket Baru' }]} />
+        <ChartLegend items={[{ color: '#D2F377', label: 'Tiket Baru' }]} />
       </div>
     </AnalyticsCard>
   )
